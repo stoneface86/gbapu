@@ -25,6 +25,8 @@ void Apu::writeRegister(Reg reg, uint8_t value) {
     #define writeDuty(gen) gen.setDuty(static_cast<Gbs::Duty>(value >> 6))
     #define writeFreqLSB(gen) gen.setFrequency((gen.frequency() & 0xFF00) | value)
     #define writeFreqMSB(gen) gen.setFrequency((gen.frequency() & 0x00FF) | ((value & 0x7) << 8))
+    #define reloadLcIfZero(lc) if (lc.counter() == 0) lc.setCounter(64)
+    #define enableLc(lc) if (!!(value & 0x40)) lc.enable()
     #define onTrigger() if (!!(value & 0x80))
 
     if (!mEnabled && reg < REG_NR52) {
@@ -38,7 +40,7 @@ void Apu::writeRegister(Reg reg, uint8_t value) {
             break;
         case REG_NR11:
             writeDuty(mHf.gen1);
-            // length counters aren't implemented so ignore the other 6 bits
+            mHf.lc1.setCounter(value & 0x3F);
             break;
         case REG_NR12:
             mHf.env1.writeRegister(value);
@@ -52,10 +54,13 @@ void Apu::writeRegister(Reg reg, uint8_t value) {
                 mHf.env1.restart();
                 mHf.sweep1.restart();
                 mHf.gen1.restart();
+                reloadLcIfZero(mHf.lc1);
+                enableLc(mHf.lc1);
             }
             break;
         case REG_NR21:
             writeDuty(mHf.gen2);
+            mHf.lc2.setCounter(value & 0x3F);
             break;
         case REG_NR22:
             mHf.env2.writeRegister(value);
@@ -68,13 +73,15 @@ void Apu::writeRegister(Reg reg, uint8_t value) {
             onTrigger() {
                 mHf.env2.restart();
                 mHf.gen2.restart();
+                reloadLcIfZero(mHf.lc2);
+                enableLc(mHf.lc2);
             }
             break;
         case REG_NR30:
             // TODO: implement functionality in WaveGen
             break;
         case REG_NR31:
-            // TODO
+            mHf.lc3.setCounter(value);
             break;
         case REG_NR32:
             mHf.gen3.setVolume(static_cast<Gbs::WaveVolume>((value >> 5) & 0x3));
@@ -86,10 +93,11 @@ void Apu::writeRegister(Reg reg, uint8_t value) {
             writeFreqMSB(mHf.gen3);
             onTrigger() {
                 mHf.gen3.restart();
+                enableLc(mHf.lc3);
             }
             break;
         case REG_NR41:
-            // TODO
+            mHf.lc4.setCounter(value & 0x3F);
             break;
         case REG_NR42:
             mHf.env4.writeRegister(value);
@@ -101,6 +109,8 @@ void Apu::writeRegister(Reg reg, uint8_t value) {
             onTrigger() {
                 mHf.env4.restart();
                 mHf.gen4.restart();
+                reloadLcIfZero(mHf.lc4);
+                enableLc(mHf.lc4);
             }
             break;
         case REG_NR50:

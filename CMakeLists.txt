@@ -24,6 +24,7 @@ set(GBAPU_SRC
     "src/Buffer.cpp"
     "src/Envelope.cpp"
     "src/Generator.cpp"
+    "src/LengthCounter.cpp"
     "src/NoiseGen.cpp"
     "src/PulseGen.cpp"
     "src/Sequencer.cpp"

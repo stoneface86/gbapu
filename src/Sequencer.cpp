@@ -57,6 +57,10 @@ void Sequencer::step(uint32_t cycles) noexcept {
                 mHf.sweep1.trigger();
                 [[fallthrough]];
             case TriggerType::lc:
+                mHf.lc1.trigger();
+                mHf.lc2.trigger();
+                mHf.lc3.trigger();
+                mHf.lc4.trigger();
                 break;
             case TriggerType::env:
                 mHf.env1.trigger();

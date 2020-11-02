@@ -2,6 +2,7 @@
 #pragma once
 
 #include "Envelope.hpp"
+#include "LengthCounter.hpp"
 #include "NoiseGen.hpp"
 #include "PulseGen.hpp"
 #include "Sweep.hpp"
@@ -20,6 +21,7 @@ struct HardwareFile {
     PulseGen gen1, gen2;
     WaveGen gen3;
     NoiseGen gen4;
+    LengthCounter lc1, lc2, lc3, lc4;
 
     HardwareFile() noexcept :
         env1(),
@@ -29,7 +31,11 @@ struct HardwareFile {
         gen1(),
         gen2(),
         gen3(),
-        gen4()
+        gen4(),
+        lc1(gen1),
+        lc2(gen2),
+        lc3(gen3),
+        lc4(gen4)
     {
     }
 
