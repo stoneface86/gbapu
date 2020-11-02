@@ -41,9 +41,7 @@ void NoiseGen::restart() noexcept {
 }
 
 void NoiseGen::step(uint32_t cycles) noexcept {
-    mFreqCounter += cycles;
-    while (mFreqCounter >= mPeriod) {
-        mFreqCounter -= mPeriod;
+    if (stepTimer(cycles)) {
 
         // xor bits 1 and 0 of the lfsr
         uint8_t result = (mLfsr & 0x1) ^ ((mLfsr >> 1) & 0x1);
@@ -56,16 +54,10 @@ void NoiseGen::step(uint32_t cycles) noexcept {
             mLfsr &= ~0x40; // reset bit 7
             mLfsr |= result << 6; // set bit 7 result
         }
-    }
 
-    // output is bit 0 inverted, so if bit 0 == 1, output MIN
-    // V = (~mLfsr) & 0x1 gives us 0 for no sample, 1 for envelope value
-    // ~V + 1 = 0 for no sample, 0xFF for envelope value (mask)
-    // using de morgan's laws
-    // ~((~mLfsr) & 0x1) + 1 -> (mLfsr | (~1)) + 1
-    // so we get 0xFF when bit 0 is 0, and 0x00 when bit 0 is 1
-    //mOutput = static_cast<uint8_t>(mLfsr | static_cast<uint8_t>(~1)) + 1;
-    mOutput = (~mLfsr) & 1;
+        mOutput = (~mLfsr) & 1;
+    }
+    
 }
 
 uint8_t NoiseGen::readRegister() const noexcept {

@@ -1,12 +1,12 @@
 
 #include "gbapu/Generator.hpp"
 
+#include <cassert>
 
 namespace gbapu {
 
 Generator::Generator(uint32_t defaultPeriod, uint8_t defaultOutput) noexcept :
-    mFreqCounter(0),
-    mPeriod(defaultPeriod),
+    Timer(defaultPeriod),
     mOutput(defaultOutput),
     mDisableMask(ENABLED)
 {
@@ -21,7 +21,7 @@ bool Generator::disabled() const noexcept {
 }
 
 void Generator::restart() noexcept {
-    mFreqCounter = 0;
+    mTimer = mPeriod;
     mDisableMask = ENABLED;
 }
 

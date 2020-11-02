@@ -48,6 +48,7 @@ private:
 
     uint16_t mFrequency;
     Gbs::Duty mDuty;
+    uint8_t mDutyWaveform;
     
     unsigned mDutyCounter;
 

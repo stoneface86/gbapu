@@ -16,10 +16,12 @@ static constexpr unsigned PULSE_MULTIPLIER = 4;
 static constexpr uint32_t DUTY_MASK = 0x7EE18180;
 
 
-static constexpr uint32_t DEFAULT_PERIOD = (2048 - trackerboy::Gbs::DEFAULT_FREQUENCY) * PULSE_MULTIPLIER;
-static constexpr uint8_t DEFAULT_OUTPUT = (DUTY_MASK >> (trackerboy::Gbs::DEFAULT_DUTY << 3)) & 1;
+static constexpr uint32_t DEFAULT_PERIOD = (2048 - gbapu::Gbs::DEFAULT_FREQUENCY) * PULSE_MULTIPLIER;
+static constexpr uint8_t DEFAULT_OUTPUT = (DUTY_MASK >> (gbapu::Gbs::DEFAULT_DUTY << 3)) & 1;
 
-#define setOutput() mOutput = ((DUTY_MASK >> ((mDuty << 3) + mDutyCounter)) & 1)
+//#define setOutput() mOutput = ((DUTY_MASK >> ((mDuty << 3) + mDutyCounter)) & 1)
+#define setOutput() mOutput = (mDutyWaveform >> mDutyCounter) & 1
+#define dutyWaveform(duty) ((DUTY_MASK >> (duty << 3)) & 0xFF)
 
 }
 
@@ -31,6 +33,7 @@ PulseGen::PulseGen() noexcept :
     Generator(DEFAULT_PERIOD, DEFAULT_OUTPUT),
     mFrequency(Gbs::DEFAULT_FREQUENCY),
     mDuty(Gbs::DEFAULT_DUTY),
+    mDutyWaveform(dutyWaveform(Gbs::DEFAULT_DUTY)),
     mDutyCounter(0)
 {
 }
@@ -44,11 +47,13 @@ uint16_t PulseGen::frequency() const noexcept {
 }
 
 void PulseGen::reset() noexcept {
-    mFrequency = Gbs::DEFAULT_FREQUENCY;
-    mDuty = Gbs::DEFAULT_DUTY;
+    setFrequency(Gbs::DEFAULT_FREQUENCY);
+    setDuty(Gbs::DEFAULT_DUTY);
     restart();
 }
 
+// restarting the pulse channel resets the duty counter
+// this may result in a click sound
 void PulseGen::restart() noexcept {
     Generator::restart();
     mDutyCounter = 0;
@@ -57,6 +62,7 @@ void PulseGen::restart() noexcept {
 
 void PulseGen::setDuty(Gbs::Duty duty) noexcept {
     mDuty = duty;
+    mDutyWaveform = dutyWaveform(duty);
 }
 
 void PulseGen::setFrequency(uint16_t frequency) noexcept {
@@ -68,16 +74,12 @@ void PulseGen::setFrequency(uint16_t frequency) noexcept {
 void PulseGen::step(uint32_t cycles) noexcept {
     // this implementation uses bit shifting instead of a lookup table
 
-    // advance the counter
-    mFreqCounter += cycles;
-    // number of duty steps to cycle through
-    uint32_t dutysteps = mFreqCounter / mPeriod;
-    mFreqCounter %= mPeriod;
-    mDutyCounter = (mDutyCounter + dutysteps) & 0x7; // & 7 == % 8
+    if (stepTimer(cycles)) {
+        // increment duty counter
+        mDutyCounter = (mDutyCounter + 1) & 0x7;
+        setOutput();
+    }
 
-    // DUTY_MASK contains all duty waveforms
-    // first byte is 12.5% second is 25% and so on
-    setOutput();
 }
 
 

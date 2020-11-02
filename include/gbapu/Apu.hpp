@@ -1,14 +1,9 @@
 
 #pragma once
 
-#include "Envelope.hpp"
-#include "NoiseGen.hpp"
-#include "PulseGen.hpp"
-#include "Sequencer.hpp"
-#include "Sweep.hpp"
-#include "WaveGen.hpp"
-
 #include "gbapu/Buffer.hpp"
+#include "gbapu/HardwareFile.hpp"
+#include "gbapu/Sequencer.hpp"
 
 #include <memory>
 
@@ -37,13 +32,7 @@ private:
 
     Buffer &mBuffer;
 
-    PulseGen mGen1, mGen2;
-    WaveGen mGen3;
-    NoiseGen mGen4;
-
-    Envelope mEnv1, mEnv2, mEnv4;
-    Sweep mSweep;
-
+    HardwareFile mHf;
     Sequencer mSequencer;
 
 };

@@ -6,16 +6,11 @@
 namespace gbapu {
 
 
-class Sequencer {
+class Sequencer : public Timer {
 
 public:
 
     Sequencer(HardwareFile &hf) noexcept;
-
-    // time in cycles til the next trigger
-    inline uint32_t fence() const noexcept { 
-        return mFence;
-    }
 
     void reset() noexcept;
 
@@ -24,20 +19,20 @@ public:
 private:
 
     enum class TriggerType {
-        sweep,
+        lcSweep,
+        lc,
         env
     };
 
     struct Trigger {
         uint32_t nextIndex;     // next index in the sequence
-        uint32_t nextFence;     // next wall to stop short
+        uint32_t nextPeriod;    // timer period for the next trigger
         TriggerType type;       // trigger to do
     };
 
     static Trigger const TRIGGER_SEQUENCE[];
 
     HardwareFile &mHf;
-    uint32_t mFence;
     uint32_t mTriggerIndex;
 
 

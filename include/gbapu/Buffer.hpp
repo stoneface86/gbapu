@@ -13,9 +13,9 @@ class Buffer {
 public:
 
     enum Quality {
-        QUALITY_LOW,
-        QUALITY_MED,
-        QUALITY_HIGH
+        QUALITY_LOW,    // low quality transitions on all channels
+        QUALITY_MED,    // high quality transitions on CH1+CH2, low quality on CH3+CH4
+        QUALITY_HIGH    // high quality transitions on all channels
     };
 
     Buffer(unsigned samplerate, unsigned buffersize = 100);

@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include "trackerboy/data/Waveform.hpp"
+#include "gbapu/Generator.hpp"
 #include "gbapu/constants.hpp"
 
 namespace gbapu {
@@ -12,7 +12,7 @@ public:
 
     WaveGen() noexcept;
 
-    void copyWave(Waveform &wave) noexcept;
+    uint8_t* waveram() const noexcept;
 
     uint16_t frequency() const noexcept;
 
@@ -29,6 +29,8 @@ public:
     Gbs::WaveVolume volume() const noexcept;
 
 private:
+
+    void setOutput();
 
     uint16_t mFrequency;
     Gbs::WaveVolume mVolume;

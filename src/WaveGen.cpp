@@ -13,7 +13,7 @@ namespace {
 // 32 Hz - 65.536 KHz
 static constexpr unsigned WAVE_MULTIPLIER = 2;
 
-static constexpr uint32_t DEFAULT_PERIOD = (2048 - trackerboy::Gbs::DEFAULT_FREQUENCY) * WAVE_MULTIPLIER;
+static constexpr uint32_t DEFAULT_PERIOD = (2048 - gbapu::Gbs::DEFAULT_FREQUENCY) * WAVE_MULTIPLIER;
 
 }
 
@@ -27,10 +27,6 @@ WaveGen::WaveGen() noexcept :
     mSampleBuffer(0),
     mWaveram{0}
 {
-}
-
-void WaveGen::copyWave(Waveform &wave) noexcept {
-    std::copy_n(wave.data(), Gbs::WAVE_RAMSIZE, mWaveram);
 }
 
 uint16_t WaveGen::frequency() const noexcept {
@@ -47,6 +43,7 @@ void WaveGen::reset() noexcept {
 
 void WaveGen::restart() noexcept {
     Generator::restart();
+    // wave position is reset to 0, but the sample buffer remains unchanged
     mWaveIndex = 0;
 }
 
@@ -57,43 +54,46 @@ void WaveGen::setFrequency(uint16_t frequency) noexcept {
 
 void WaveGen::setVolume(Gbs::WaveVolume volume) noexcept {
     mVolume = volume;
+    setOutput();
 }
 
 void WaveGen::step(uint32_t cycles) noexcept {
-    mFreqCounter += cycles;
-    uint32_t wavesteps = mFreqCounter / mPeriod;
-    mFreqCounter %= mPeriod;
-    mWaveIndex = (mWaveIndex + wavesteps) & 0x1F; // & 0x1F == % 32
 
-    uint8_t sample = mWaveram[mWaveIndex >> 1];
-    if (mWaveIndex & 1) {
-        // odd number, low nibble
-        sample &= 0xF;
-    } else {
-        // even number, high nibble
-        sample >>= 4;
+    if (stepTimer(cycles)) {
+        mWaveIndex = (mWaveIndex + 1) & 0x1F;
+        mSampleBuffer = mWaveram[mWaveIndex >> 1];
+        if (mWaveIndex & 1) {
+            // odd number, low nibble
+            mSampleBuffer &= 0xF;
+        } else {
+            // even number, high nibble
+            mSampleBuffer >>= 4;
+        }
+
+        
+        setOutput();
     }
-
-    switch (mVolume) {
-        case Gbs::WAVE_MUTE:
-            sample = Gbs::SAMPLE_MIN;
-            break;
-        case Gbs::WAVE_FULL:
-            break; // nothing to do
-        case Gbs::WAVE_HALF:
-            sample >>= 1;
-            break;
-        case Gbs::WAVE_QUARTER:
-            // same as WAVE_HALF except shift by 2
-            sample >>= 2;
-            break;
-    }
-
-    mOutput = sample;
 }
 
 Gbs::WaveVolume WaveGen::volume() const noexcept {
     return mVolume;
+}
+
+void WaveGen::setOutput() {
+    switch (mVolume) {
+        case Gbs::WAVE_MUTE:
+            mOutput = 0;
+            break;
+        case Gbs::WAVE_FULL:
+            mOutput = mSampleBuffer;
+            break;
+        case Gbs::WAVE_HALF:
+            mOutput = mSampleBuffer >> 1;
+            break;
+        case Gbs::WAVE_QUARTER:
+            mOutput = mSampleBuffer >> 2;
+            break;
+    }
 }
 
 

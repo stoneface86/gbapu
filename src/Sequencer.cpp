@@ -1,9 +1,7 @@
 
 #include "gbapu/Sequencer.hpp"
 
-#include <cassert>
-
-// A step occurs every 8192 cycles (512 Hz)
+// A step occurs every 8192 cycles (4194304 Hz / 8192 = 512 Hz)
 //
 // Step:                 | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 // --------------------------+---+---+---+---+---+---+---+-------------------
@@ -11,13 +9,12 @@
 // Sweep        (128 Hz) |         x               x       
 // envelope     ( 64 Hz) |                             x  
 //
-// Length counters aren't implemented so we ignore those triggers
 
 namespace {
 
 constexpr uint32_t CYCLES_PER_STEP = 8192;
 
-constexpr uint32_t DEFAULT_FENCE = CYCLES_PER_STEP * 2;
+constexpr uint32_t DEFAULT_PERIOD = CYCLES_PER_STEP * 2;
 
 }
 
@@ -25,47 +22,41 @@ constexpr uint32_t DEFAULT_FENCE = CYCLES_PER_STEP * 2;
 namespace gbapu {
 
 Sequencer::Trigger const Sequencer::TRIGGER_SEQUENCE[] = {
-    // step 0 trigger, next trigger: 2
-    //{1, CYCLES_PER_STEP * 2, TriggerType::LC},
-    // step 2 trigger, next trigger: 4
-    //{2, CYCLES_PER_STEP * 2, TriggerType::LC_AND_SWEEP},
-    // step 4 trigger, next trigger: 6
-    //{3, CYCLES_PER_STEP * 2, TriggerType::LC},
+
+    {1,     CYCLES_PER_STEP * 2,    TriggerType::lc},
+
+    {2,     CYCLES_PER_STEP * 2,    TriggerType::lcSweep},
+
+    {3,     CYCLES_PER_STEP,        TriggerType::lc},
+
     // step 6 trigger, next trigger: 7
-    //{4, CYCLES_PER_STEP,     TriggerType::LC_AND_SWEEP},
-
-    // step 2 trigger, next trigger: 1
-    {1, CYCLES_PER_STEP * 4, TriggerType::sweep},
-
-    // step 6 trigger, next trigger: 2
-    {2, CYCLES_PER_STEP,     TriggerType::sweep},
+    {4,     CYCLES_PER_STEP,        TriggerType::lcSweep},
 
     // step 7 trigger, next trigger: 0
-    {0, CYCLES_PER_STEP * 3,     TriggerType::env}
+    {0,     CYCLES_PER_STEP * 2,    TriggerType::env}
 };
 
 Sequencer::Sequencer(HardwareFile &hf) noexcept :
+    Timer(DEFAULT_PERIOD),
     mHf(hf),
-    mFence(DEFAULT_FENCE),
     mTriggerIndex(0)
 {
 }
 
 void Sequencer::reset() noexcept {
-    mFence = DEFAULT_FENCE;
+    mPeriod = mTimer = DEFAULT_PERIOD;
     mTriggerIndex = 0;
 }
 
 void Sequencer::step(uint32_t cycles) noexcept {
-    assert(cycles <= mFence);
-
-    mFence -= cycles;
-
-    if (mFence == 0) {
+    
+    if (stepTimer(cycles)) {
         Trigger const &trigger = TRIGGER_SEQUENCE[mTriggerIndex];
         switch (trigger.type) {
-            case TriggerType::sweep:
+            case TriggerType::lcSweep:
                 mHf.sweep1.trigger();
+                [[fallthrough]];
+            case TriggerType::lc:
                 break;
             case TriggerType::env:
                 mHf.env1.trigger();
@@ -73,7 +64,7 @@ void Sequencer::step(uint32_t cycles) noexcept {
                 mHf.env4.trigger();
                 break;
         }
-        mFence = trigger.nextFence;
+        mPeriod = trigger.nextPeriod;
         mTriggerIndex = trigger.nextIndex;
     }
 

@@ -1,12 +1,14 @@
 
 #pragma once
 
+#include "gbapu/Timer.hpp"
+
 #include <cstdint>
 
 namespace gbapu {
 
 
-class Generator {
+class Generator : public Timer {
 
 public:
 
@@ -27,17 +29,12 @@ public:
     virtual void reset() noexcept = 0;
 
     //
-    // Restart (retrigger) the generator. Counters are reset to 0. If the
-    // generator was disabled, it is re-enabled.
+    // Restart (retrigger) the generator.
+    //  * Channel is enabled
+    //  * The timer is reloaded with the period
+    //
     //
     virtual void restart() noexcept;
-
-    //
-    // Returns the fence, or the number of cycles to complete a period.
-    //
-    inline uint32_t fence() const noexcept {
-        return (mFreqCounter > mPeriod) ? 0 : mPeriod - mFreqCounter;
-    }
 
     //
     // Return the current output of the generator. Channels with an envelope
@@ -51,10 +48,6 @@ public:
 protected:
 
     Generator(uint32_t defaultPeriod, uint8_t defaultOutput) noexcept;
-
-
-    uint32_t mFreqCounter;
-    uint32_t mPeriod;
 
     uint8_t mOutput;
 
