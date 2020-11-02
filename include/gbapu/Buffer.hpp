@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <memory>
 
 namespace gbapu {
@@ -56,6 +57,7 @@ private:
     unsigned mVolumeStep;
     unsigned mSamplerate;
     unsigned mBuffersize;
+    bool mResizeRequired;
 
 };
 
