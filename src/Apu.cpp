@@ -149,7 +149,13 @@ void Apu::writeRegister(Reg reg, uint8_t value) {
         case REG_WAVERAM + 13:
         case REG_WAVERAM + 14:
         case REG_WAVERAM + 15:
-            // TODO
+            // if CH3's DAC is enabled, then the write goes to the current waveposition
+            // this can only be done within a few clocks when CH3 accesses waveram, otherwise the write has no effect
+            if (mHf.gen3.disabled()) {
+                auto waveram = mHf.gen3.waveram();
+                waveram[reg - REG_WAVERAM] = value;
+            }
+            // ignore write if enabled
             break;
         default:
             break;

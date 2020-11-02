@@ -29,6 +29,10 @@ WaveGen::WaveGen() noexcept :
 {
 }
 
+uint8_t* WaveGen::waveram() noexcept {
+    return mWaveram;
+}
+
 uint16_t WaveGen::frequency() const noexcept {
     return mFrequency;
 }

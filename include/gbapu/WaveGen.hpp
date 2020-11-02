@@ -12,7 +12,7 @@ public:
 
     WaveGen() noexcept;
 
-    uint8_t* waveram() const noexcept;
+    uint8_t* waveram() noexcept;
 
     uint16_t frequency() const noexcept;
 

@@ -24,6 +24,7 @@ namespace gbapu {
 NoiseGen::NoiseGen() noexcept :
     Generator(calcCounterMax(Gbs::DEFAULT_DRF, Gbs::DEFAULT_SCF), 0),
     mRegister(Gbs::DEFAULT_NOISE_REGISTER),
+    mValidScf(true),
     mStepSelection(Gbs::DEFAULT_STEP_COUNT),
     mLfsr(LFSR_INIT)
 {
@@ -31,6 +32,7 @@ NoiseGen::NoiseGen() noexcept :
 
 void NoiseGen::reset() noexcept {
     mRegister = Gbs::DEFAULT_NOISE_REGISTER;
+    mValidScf = true;
     restart();
 }
 
@@ -41,7 +43,7 @@ void NoiseGen::restart() noexcept {
 }
 
 void NoiseGen::step(uint32_t cycles) noexcept {
-    if (stepTimer(cycles)) {
+    if (stepTimer(cycles) && mValidScf) {
 
         // xor bits 1 and 0 of the lfsr
         uint8_t result = (mLfsr & 0x1) ^ ((mLfsr >> 1) & 0x1);
@@ -69,6 +71,7 @@ void NoiseGen::writeRegister(uint8_t reg) noexcept {
     uint8_t drf = mRegister & 0x7;
     mStepSelection = static_cast<Gbs::NoiseSteps>((mRegister >> 3) & 1);
     uint8_t scf = mRegister >> 4;
+    mValidScf = scf < 0xD; // obscure behavior: if scf >= 0xD then the channel receives no clocks
     mPeriod = calcCounterMax(drf, scf);
 }
 

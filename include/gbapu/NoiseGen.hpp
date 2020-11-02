@@ -40,6 +40,7 @@ private:
 
     // NR43 register contents
     uint8_t mRegister;
+    bool mValidScf;
 
     // width of the LFSR (15-bit or 7-bit)
     Gbs::NoiseSteps mStepSelection;
