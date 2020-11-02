@@ -50,6 +50,8 @@ private:
 
     void addDelta34(int term, int16_t delta, uint32_t clocktime);
 
+    void endFrame(uint32_t clocktime);
+
     struct Internal;
     std::unique_ptr<Internal> mInternal;
 

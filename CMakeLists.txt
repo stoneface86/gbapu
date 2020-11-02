@@ -5,6 +5,8 @@ project (
     LANGUAGES C CXX
 )
 
+option(GBAPU_DEMOS OFF)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -18,6 +20,7 @@ include_directories(
 add_library(blip_buf STATIC "${BLIP_BUF_DIR}/blip_buf.c")
 
 set(GBAPU_SRC
+    "src/Apu.cpp"
     "src/Buffer.cpp"
     "src/Envelope.cpp"
     "src/Generator.cpp"
@@ -34,4 +37,8 @@ target_link_libraries(gbapu PRIVATE blip_buf)
 
 if (MSVC)
     target_compile_options(gbapu PRIVATE /wd26812)
+endif ()
+
+if (GBAPU_DEMOS)
+    add_subdirectory(demo)
 endif ()

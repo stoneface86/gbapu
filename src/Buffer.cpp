@@ -35,9 +35,7 @@ Buffer::Buffer(unsigned samplerate, unsigned buffersize) :
     resize();
 }
 
-Buffer::~Buffer() {
-
-}
+Buffer::~Buffer() = default;
 
 size_t Buffer::available() {
     return blip_samples_avail(mInternal->bbuf[0]);
@@ -110,6 +108,12 @@ void Buffer::addDelta34(int term, int16_t delta, uint32_t clocktime) {
     } else {
         blip_add_delta_fast(mInternal->bbuf[term], clocktime, delta * mVolumeStep);
     }
+}
+
+void Buffer::endFrame(uint32_t clocktime) {
+    blip_end_frame(mInternal->bbuf[0], clocktime);
+    blip_end_frame(mInternal->bbuf[1], clocktime);
+
 }
 
 
