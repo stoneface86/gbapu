@@ -53,6 +53,7 @@ void Apu::writeRegister(Reg reg, uint8_t value) {
             onTrigger() {
                 mHf.env1.restart();
                 mHf.sweep1.restart();
+                mHf.gen1.setDacEnable(mHf.env1.dacStatus());
                 mHf.gen1.restart();
                 reloadLcIfZero(mHf.lc1);
                 enableLc(mHf.lc1);
@@ -72,13 +73,14 @@ void Apu::writeRegister(Reg reg, uint8_t value) {
             writeFreqMSB(mHf.gen2);
             onTrigger() {
                 mHf.env2.restart();
+                mHf.gen2.setDacEnable(mHf.env2.dacStatus());
                 mHf.gen2.restart();
                 reloadLcIfZero(mHf.lc2);
                 enableLc(mHf.lc2);
             }
             break;
         case REG_NR30:
-            // TODO: implement functionality in WaveGen
+            mHf.gen3.setDacEnable(!!(value & 0x80));
             break;
         case REG_NR31:
             mHf.lc3.setCounter(value);
@@ -108,6 +110,7 @@ void Apu::writeRegister(Reg reg, uint8_t value) {
         case REG_NR44:
             onTrigger() {
                 mHf.env4.restart();
+                mHf.gen4.setDacEnable(mHf.env4.dacStatus());
                 mHf.gen4.restart();
                 reloadLcIfZero(mHf.lc4);
                 enableLc(mHf.lc4);

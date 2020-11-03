@@ -14,6 +14,11 @@ public:
 
     Envelope() noexcept;
 
+    //
+    // If the upper 5 bits of the register are cleared, the dac is off
+    //
+    bool dacStatus() const noexcept;
+
     uint8_t readRegister() const noexcept;
 
     void reset() noexcept;

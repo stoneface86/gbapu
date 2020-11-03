@@ -13,6 +13,13 @@ Envelope::Envelope() noexcept :
 {
 }
 
+bool Envelope::dacStatus() const noexcept {
+    // 00000xxx : volume = 0, mode = attenuate, DAC off
+    // 00010xxx : volume = 1, mode = attenuate, DAC on
+    // 00001xxx : volume = 0, mode = amplify, DAC on
+    return !!(mRegister & 0xF8);
+}
+
 uint8_t Envelope::readRegister() const noexcept {
     return mRegister;
 }
