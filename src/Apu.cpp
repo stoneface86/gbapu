@@ -162,7 +162,7 @@ void Apu::step(uint32_t cycles) {
             leftdelta = 0;
         }
         if (rightdelta) {
-            mBuffer.addDelta12(1, rightdelta * mLeftVolume, mCycletime);
+            mBuffer.addDelta12(1, rightdelta * mRightVolume, mCycletime);
             rightdelta = 0;
         }
 
@@ -170,7 +170,7 @@ void Apu::step(uint32_t cycles) {
         getOutput<3>(leftdelta, rightdelta);
 
         if (leftdelta) {
-            mBuffer.addDelta34(0, leftdelta * mRightVolume, mCycletime);
+            mBuffer.addDelta34(0, leftdelta * mLeftVolume, mCycletime);
         }
         if (rightdelta) {
             mBuffer.addDelta34(1, rightdelta * mRightVolume, mCycletime);
