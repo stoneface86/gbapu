@@ -9,8 +9,8 @@ Apu::Apu(Buffer &buffer) :
     mBuffer(buffer),
     mCf(),
     mSequencer(mCf),
-    mLeftVolume(Gbs::MAX_TERM_VOLUME + 1),
-    mRightVolume(Gbs::DEFAULT_TERM_VOLUME + 1),
+    mLeftVolume(constants::MAX_TERM_VOLUME + 1),
+    mRightVolume(constants::MAX_TERM_VOLUME + 1),
     mOutputStat(0),
     mLastAmps{ 0 },
     mEnabled(false)

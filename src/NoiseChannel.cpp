@@ -24,7 +24,7 @@ namespace gbapu {
 NoiseChannel::NoiseChannel() noexcept :
     EnvChannelBase(16, 64),
     mValidScf(true),
-    mStepSelection(Gbs::DEFAULT_STEP_COUNT),
+    mHalfWidth(false),
     mLfsr(LFSR_INIT)
 {
 }
@@ -36,6 +36,7 @@ void NoiseChannel::reset() noexcept {
 }
 
 void NoiseChannel::restart() noexcept {
+    EnvChannelBase::restart();
     mLfsr = LFSR_INIT;
     // bit 0 inverted of LFSR_INIT is 0
     mOutput = 0;
@@ -50,7 +51,7 @@ void NoiseChannel::stepOscillator() noexcept {
         mLfsr >>= 1;
         // set the resulting xor to bit 15 (feedback)
         mLfsr |= result << 14;
-        if (mStepSelection == Gbs::NOISE_STEPS_7) {
+        if (mHalfWidth) {
             // 7-bit lfsr, set bit 7 with the result
             mLfsr &= ~0x40; // reset bit 7
             mLfsr |= result << 6; // set bit 7 result
@@ -63,7 +64,7 @@ void NoiseChannel::stepOscillator() noexcept {
 
 void NoiseChannel::setPeriod() noexcept {
     uint8_t drf = mFrequency & 0x7;
-    mStepSelection = static_cast<Gbs::NoiseSteps>((mFrequency >> 3) & 1);
+    mHalfWidth = !!((mFrequency >> 3) & 1);
     uint8_t scf = mFrequency >> 4;
     mValidScf = scf < 0xD; // obscure behavior: if scf >= 0xD then the channel receives no clocks
     mPeriod = calcCounterMax(drf, scf);

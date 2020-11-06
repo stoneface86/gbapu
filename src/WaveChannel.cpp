@@ -13,7 +13,7 @@ namespace {
 // 32 Hz - 65.536 KHz
 static constexpr unsigned WAVE_MULTIPLIER = 2;
 
-static constexpr uint32_t DEFAULT_PERIOD = (2048 - gbapu::Gbs::DEFAULT_FREQUENCY) * WAVE_MULTIPLIER;
+static constexpr uint32_t DEFAULT_PERIOD = (2048 - 0) * WAVE_MULTIPLIER;
 
 }
 
@@ -21,7 +21,7 @@ namespace gbapu {
 
 WaveChannel::WaveChannel() noexcept :
     ChannelBase(DEFAULT_PERIOD, 0),
-    mVolume(Gbs::DEFAULT_WAVE_LEVEL),
+    mVolumeShift(0),
     mWaveIndex(0),
     mSampleBuffer(0),
     mWaveram{0}
@@ -34,8 +34,8 @@ uint8_t* WaveChannel::waveram() noexcept {
 
 void WaveChannel::reset() noexcept {
     ChannelBase::reset();
-    mVolume = Gbs::DEFAULT_WAVE_LEVEL;
-    std::fill_n(mWaveram, Gbs::WAVE_RAMSIZE, static_cast<uint8_t>(0));
+    mVolumeShift = 0;
+    std::fill_n(mWaveram, constants::WAVE_RAMSIZE, static_cast<uint8_t>(0));
     mSampleBuffer = 0;
     restart();
 }
@@ -47,7 +47,17 @@ void WaveChannel::restart() noexcept {
 }
 
 void WaveChannel::writeVolume(uint8_t volume) noexcept {
-    mVolume = static_cast<Gbs::WaveVolume>(volume >> 5);
+    // convert nr32 register to a shift amount
+    // shift = 0 : sample / 1  = 100%
+    // shift = 1 : sample / 2  =  50%
+    // shift = 2 : sample / 4  =  25%
+    // shift = 4 : sample / 16 =   0%
+    volume = (volume >> 5) & 0x3;
+    if (volume) {
+        mVolumeShift = volume - 1;
+    } else {
+        mVolumeShift = 4; // shifting by 4 results in 0 (mute)
+    }
     setOutput();
 }
 
@@ -72,25 +82,12 @@ void WaveChannel::setPeriod() noexcept {
     mPeriod = (2048 - mFrequency) * WAVE_MULTIPLIER;
 }
 
-Gbs::WaveVolume WaveChannel::volume() const noexcept {
-    return mVolume;
-}
+//Gbs::WaveVolume WaveChannel::volume() const noexcept {
+//    return mVolume;
+//}
 
 void WaveChannel::setOutput() {
-    switch (mVolume) {
-        case Gbs::WAVE_MUTE:
-            mOutput = 0;
-            break;
-        case Gbs::WAVE_FULL:
-            mOutput = mSampleBuffer;
-            break;
-        case Gbs::WAVE_HALF:
-            mOutput = mSampleBuffer >> 1;
-            break;
-        case Gbs::WAVE_QUARTER:
-            mOutput = mSampleBuffer >> 2;
-            break;
-    }
+    mOutput = mSampleBuffer >> mVolumeShift;
 }
 
 

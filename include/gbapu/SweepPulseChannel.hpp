@@ -2,7 +2,6 @@
 #pragma once
 
 #include "gbapu/PulseChannel.hpp"
-#include "gbapu/constants.hpp"
 
 namespace gbapu {
 
@@ -23,7 +22,7 @@ public:
 
 private:
 
-    Gbs::SweepMode mSweepMode;
+    bool mSweepSubtraction;
     uint8_t mSweepTime;
     uint8_t mSweepShift;
 

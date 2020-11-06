@@ -1,15 +1,16 @@
 
 #include "gbapu/SweepPulseChannel.hpp"
+#include "gbapu/constants.hpp"
 
 namespace gbapu {
 
 SweepPulseChannel::SweepPulseChannel() noexcept :
     PulseChannel(),
-    mSweepMode(Gbs::DEFAULT_SWEEP_MODE),
-    mSweepTime(Gbs::DEFAULT_SWEEP_TIME),
-    mSweepShift(Gbs::DEFAULT_SWEEP_SHIFT),
+    mSweepSubtraction(false),
+    mSweepTime(0),
+    mSweepShift(0),
     mSweepCounter(0),
-    mSweepRegister(Gbs::DEFAULT_SWEEP_REGISTER),
+    mSweepRegister(0),
     mShadow(0)
 {
 }
@@ -19,7 +20,8 @@ uint8_t SweepPulseChannel::readSweep() const noexcept {
 }
 
 void SweepPulseChannel::reset() noexcept {
-    mSweepRegister = Gbs::DEFAULT_SWEEP_REGISTER;
+    PulseChannel::reset();
+    mSweepRegister = 0;
     restart();
 }
 
@@ -27,7 +29,7 @@ void SweepPulseChannel::restart() noexcept {
     PulseChannel::restart();
     mSweepCounter = 0;
     mSweepShift = mSweepRegister & 0x7;
-    mSweepMode = static_cast<Gbs::SweepMode>((mSweepRegister >> 3) & 1);
+    mSweepSubtraction = !!((mSweepRegister >> 3) & 1);
     mSweepTime = (mSweepRegister >> 4) & 0x7;
     mShadow = mFrequency;
 }
@@ -42,14 +44,14 @@ void SweepPulseChannel::stepSweep() noexcept {
             mSweepCounter = 0;
             if (mSweepShift) {
                 int16_t sweepfreq = mShadow >> mSweepShift;
-                if (mSweepMode == Gbs::SWEEP_SUBTRACTION) {
+                if (mSweepSubtraction) {
                     sweepfreq = mShadow - sweepfreq;
                     if (sweepfreq < 0) {
                         return; // no change
                     }
                 } else {
                     sweepfreq = mShadow + sweepfreq;
-                    if (sweepfreq > Gbs::MAX_FREQUENCY) {
+                    if (sweepfreq > constants::MAX_FREQUENCY) {
                         // sweep will overflow, disable the channel
                         disable();
                         return;

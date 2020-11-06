@@ -17,8 +17,7 @@ static constexpr unsigned PULSE_MULTIPLIER = 4;
 static constexpr uint32_t DUTY_MASK = 0x7EE18180;
 
 
-static constexpr uint32_t DEFAULT_PERIOD = (2048 - gbapu::Gbs::DEFAULT_FREQUENCY) * PULSE_MULTIPLIER;
-static constexpr uint8_t DEFAULT_OUTPUT = (DUTY_MASK >> (gbapu::Gbs::DEFAULT_DUTY << 3)) & 1;
+static constexpr uint32_t DEFAULT_PERIOD = (2048 - 0) * PULSE_MULTIPLIER;
 
 //#define setOutput() mOutput = ((DUTY_MASK >> ((mDuty << 3) + mDutyCounter)) & 1)
 #define setOutput() mOutput = (mDutyWaveform >> mDutyCounter) & 1
@@ -31,7 +30,7 @@ namespace gbapu {
 
 
 PulseChannel::PulseChannel() noexcept :
-    EnvChannelBase(2048 * 4, 64),
+    EnvChannelBase(DEFAULT_PERIOD, 64),
     mDuty(3),
     mDutyWaveform(dutyWaveform(3)),
     mDutyCounter(0)

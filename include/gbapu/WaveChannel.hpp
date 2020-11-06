@@ -20,7 +20,7 @@ public:
 
     void writeVolume(uint8_t volume) noexcept;
 
-    Gbs::WaveVolume volume() const noexcept;
+    //Gbs::WaveVolume volume() const noexcept;
 
 
 protected:
@@ -35,10 +35,11 @@ private:
 
     void setOutput();
 
-    Gbs::WaveVolume mVolume;
+    //Gbs::WaveVolume mVolume;
+    uint8_t mVolumeShift;
     uint8_t mWaveIndex;
     uint8_t mSampleBuffer;
-    uint8_t mWaveram[Gbs::WAVE_RAMSIZE];
+    uint8_t mWaveram[constants::WAVE_RAMSIZE];
 
 
 };

@@ -15,6 +15,7 @@ int main() {
 
 
     Buffer buffer(SAMPLERATE);
+    buffer.setQuality(Buffer::QUALITY_MED);
     Apu apu(buffer);
 
     // power on
@@ -34,6 +35,10 @@ int main() {
     apu.writeRegister(Apu::REG_NR12, 0xF4);
     apu.step(3);
     apu.writeRegister(Apu::REG_NR14, 0xC7);
+
+    apu.writeRegister(Apu::REG_NR42, 0xF0);
+    apu.writeRegister(Apu::REG_NR43, 0x13);
+    apu.writeRegister(Apu::REG_NR44, 0x80);
 
     
 
