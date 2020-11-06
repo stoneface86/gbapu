@@ -1,8 +1,7 @@
 
-#include "gbapu/SweepPulseChannel.hpp"
-#include "gbapu/constants.hpp"
+#include "gbapu.hpp"
 
-namespace gbapu {
+namespace gbapu::_internal {
 
 SweepPulseChannel::SweepPulseChannel() noexcept :
     PulseChannel(),

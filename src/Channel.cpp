@@ -1,10 +1,10 @@
 
-#include "gbapu/Channel.hpp"
+#include "gbapu.hpp"
 
 
 #include <cassert>
 
-namespace gbapu {
+namespace gbapu::_internal {
 
 ChannelBase::ChannelBase(uint32_t defaultPeriod, unsigned lengthCounterMax) noexcept :
     Timer(defaultPeriod),

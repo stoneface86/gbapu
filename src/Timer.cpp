@@ -1,9 +1,9 @@
 
-#include "gbapu/Timer.hpp"
+#include "gbapu.hpp"
 
 #include <cassert>
 
-namespace gbapu {
+namespace gbapu::_internal {
 
 Timer::Timer(uint32_t period) :
     mTimer(period),

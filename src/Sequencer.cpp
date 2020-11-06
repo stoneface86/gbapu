@@ -1,5 +1,5 @@
 
-#include "gbapu/Sequencer.hpp"
+#include "gbapu.hpp"
 
 // A step occurs every 8192 cycles (4194304 Hz / 8192 = 512 Hz)
 //
@@ -19,7 +19,7 @@ constexpr uint32_t DEFAULT_PERIOD = CYCLES_PER_STEP * 2;
 }
 
 
-namespace gbapu {
+namespace gbapu::_internal {
 
 Sequencer::Trigger const Sequencer::TRIGGER_SEQUENCE[] = {
 

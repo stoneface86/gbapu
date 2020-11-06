@@ -1,7 +1,7 @@
 
-#include <algorithm>
+#include "gbapu.hpp"
 
-#include "gbapu/WaveChannel.hpp"
+#include <algorithm>
 
 // some obscure behavior is not implemented
 // 1. wave RAM is not corrupted on retrigger if the DAC is still enabled, this
@@ -17,7 +17,7 @@ static constexpr uint32_t DEFAULT_PERIOD = (2048 - 0) * WAVE_MULTIPLIER;
 
 }
 
-namespace gbapu {
+namespace gbapu::_internal {
 
 WaveChannel::WaveChannel() noexcept :
     ChannelBase(DEFAULT_PERIOD, 0),

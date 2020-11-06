@@ -1,6 +1,5 @@
 
-#include "gbapu/PulseChannel.hpp"
-#include "gbapu/constants.hpp"
+#include "gbapu.hpp"
 
 namespace {
 
@@ -26,7 +25,7 @@ static constexpr uint32_t DEFAULT_PERIOD = (2048 - 0) * PULSE_MULTIPLIER;
 }
 
 
-namespace gbapu {
+namespace gbapu::_internal {
 
 
 PulseChannel::PulseChannel() noexcept :

@@ -1,5 +1,5 @@
 
-#include "gbapu/Buffer.hpp"
+#include "gbapu.hpp"
 
 #include "blip_buf.h"
 

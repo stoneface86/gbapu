@@ -1,5 +1,5 @@
 
-#include "gbapu/Apu.hpp"
+#include "gbapu.hpp"
 
 #include <algorithm>
 

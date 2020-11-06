@@ -1,5 +1,5 @@
 
-#include "gbapu/NoiseChannel.hpp"
+#include "gbapu.hpp"
 
 constexpr uint16_t LFSR_INIT = 0x7FFF;
 #define calcCounterMax(drf, scf) (DRF_TABLE[drf] << (scf+1))
@@ -19,7 +19,7 @@ static const uint8_t DRF_TABLE[] = {
 
 }
 
-namespace gbapu {
+namespace gbapu::_internal {
 
 NoiseChannel::NoiseChannel() noexcept :
     EnvChannelBase(16, 64),
