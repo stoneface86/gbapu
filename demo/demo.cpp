@@ -27,13 +27,13 @@ int main() {
     apu.writeRegister(Apu::REG_NR50, 0x77);
 
 
-    //apu.writeRegister(Apu::REG_NR10, 0x36);
-    apu.writeRegister(Apu::REG_NR11, 0x80);
+    apu.writeRegister(Apu::REG_NR10, 0x37);
+    apu.writeRegister(Apu::REG_NR11, 0x8F);
     // CH1 Envelope = $f0 (constant volume 15)
     apu.step(3);
     apu.writeRegister(Apu::REG_NR12, 0xF4);
     apu.step(3);
-    apu.writeRegister(Apu::REG_NR14, 0x87);
+    apu.writeRegister(Apu::REG_NR14, 0xC7);
 
     
 

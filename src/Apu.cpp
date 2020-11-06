@@ -7,8 +7,8 @@ namespace gbapu {
 
 Apu::Apu(Buffer &buffer) :
     mBuffer(buffer),
-    mHf(),
-    mSequencer(mHf),
+    mCf(),
+    mSequencer(mCf),
     mLeftVolume(Gbs::MAX_TERM_VOLUME + 1),
     mRightVolume(Gbs::DEFAULT_TERM_VOLUME + 1),
     mOutputStat(0),
@@ -22,13 +22,8 @@ void Apu::writeRegister(uint16_t addr, uint8_t value) {
 }
 
 void Apu::writeRegister(Reg reg, uint8_t value) {
-    #define writeDuty(gen) gen.setDuty(static_cast<Gbs::Duty>(value >> 6))
-    #define writeFreqLSB(gen) gen.setFrequency((gen.frequency() & 0xFF00) | value)
-    #define writeFreqMSB(gen) gen.setFrequency((gen.frequency() & 0x00FF) | ((value & 0x7) << 8))
-    #define reloadLcIfZero(lc) if (lc.counter() == 0) lc.setCounter(64)
-    #define enableLc(lc) if (!!(value & 0x40)) lc.enable()
-    #define onTrigger() if (!!(value & 0x80))
 
+    // TODO: length counters can still be accessed on DMG when powered off
     if (!mEnabled && reg < REG_NR52) {
         // APU is disabled, ignore this write
         return;
@@ -36,85 +31,60 @@ void Apu::writeRegister(Reg reg, uint8_t value) {
 
     switch (reg) {
         case REG_NR10:
-            mHf.sweep1.writeRegister(value);
+            mCf.ch1.writeSweep(value);
             break;
         case REG_NR11:
-            writeDuty(mHf.gen1);
-            mHf.lc1.setCounter(value & 0x3F);
+            mCf.ch1.writeDuty(value >> 6);
+            mCf.ch1.writeLengthCounter(value & 0x3F);
             break;
         case REG_NR12:
-            mHf.env1.writeRegister(value);
+            mCf.ch1.writeEnvelope(value);
             break;
         case REG_NR13:
-            writeFreqLSB(mHf.gen1);
+            mCf.ch1.writeFrequencyLsb(value);
             break;
         case REG_NR14:
-            writeFreqMSB(mHf.gen1);
-            onTrigger() {
-                mHf.env1.restart();
-                mHf.sweep1.restart();
-                mHf.gen1.setDacEnable(mHf.env1.dacStatus());
-                mHf.gen1.restart();
-                reloadLcIfZero(mHf.lc1);
-                enableLc(mHf.lc1);
-            }
+            mCf.ch1.writeFrequencyMsb(value);
             break;
         case REG_NR21:
-            writeDuty(mHf.gen2);
-            mHf.lc2.setCounter(value & 0x3F);
+            mCf.ch2.writeDuty(value >> 6);
+            mCf.ch2.writeLengthCounter(value & 0x3F);
             break;
         case REG_NR22:
-            mHf.env2.writeRegister(value);
+            mCf.ch2.writeEnvelope(value);
             break;
         case REG_NR23:
-            writeFreqLSB(mHf.gen2);
+            mCf.ch2.writeFrequencyLsb(value);
             break;
         case REG_NR24:
-            writeFreqMSB(mHf.gen2);
-            onTrigger() {
-                mHf.env2.restart();
-                mHf.gen2.setDacEnable(mHf.env2.dacStatus());
-                mHf.gen2.restart();
-                reloadLcIfZero(mHf.lc2);
-                enableLc(mHf.lc2);
-            }
+            mCf.ch2.writeFrequencyMsb(value);
             break;
         case REG_NR30:
-            mHf.gen3.setDacEnable(!!(value & 0x80));
+            mCf.ch3.setDacEnable(!!(value & 0x80));
             break;
         case REG_NR31:
-            mHf.lc3.setCounter(value);
+            mCf.ch3.writeLengthCounter(value);
             break;
         case REG_NR32:
-            mHf.gen3.setVolume(static_cast<Gbs::WaveVolume>((value >> 5) & 0x3));
+            mCf.ch3.writeVolume(value);
             break;
         case REG_NR33:
-            writeFreqLSB(mHf.gen3);
+            mCf.ch3.writeFrequencyLsb(value);
             break;
         case REG_NR34:
-            writeFreqMSB(mHf.gen3);
-            onTrigger() {
-                mHf.gen3.restart();
-                enableLc(mHf.lc3);
-            }
+            mCf.ch3.writeFrequencyMsb(value);
             break;
         case REG_NR41:
-            mHf.lc4.setCounter(value & 0x3F);
+            mCf.ch4.writeLengthCounter(value & 0x3F);
             break;
         case REG_NR42:
-            mHf.env4.writeRegister(value);
+            mCf.ch4.writeEnvelope(value);
             break;
         case REG_NR43:
-            mHf.gen4.writeRegister(value);
+            mCf.ch4.writeFrequencyLsb(value);
             break;
         case REG_NR44:
-            onTrigger() {
-                mHf.env4.restart();
-                mHf.gen4.setDacEnable(mHf.env4.dacStatus());
-                mHf.gen4.restart();
-                reloadLcIfZero(mHf.lc4);
-                enableLc(mHf.lc4);
-            }
+            mCf.ch4.writeFrequencyMsb(value);
             break;
         case REG_NR50:
             // do nothing with the Vin bits
@@ -164,8 +134,8 @@ void Apu::writeRegister(Reg reg, uint8_t value) {
         case REG_WAVERAM + 15:
             // if CH3's DAC is enabled, then the write goes to the current waveposition
             // this can only be done within a few clocks when CH3 accesses waveram, otherwise the write has no effect
-            if (mHf.gen3.disabled()) {
-                auto waveram = mHf.gen3.waveram();
+            if (!mCf.ch3.dacOn()) {
+                auto waveram = mCf.ch3.waveram();
                 waveram[reg - REG_WAVERAM] = value;
             }
             // ignore write if enabled
@@ -210,18 +180,18 @@ void Apu::step(uint32_t cycles) {
         uint32_t cyclesToStep = std::min({
             cycles,
             mSequencer.timer(),
-            mHf.gen1.timer(),
-            mHf.gen2.timer(),
-            mHf.gen3.timer(),
-            mHf.gen4.timer()
+            mCf.ch1.timer(),
+            mCf.ch2.timer(),
+            mCf.ch3.timer(),
+            mCf.ch4.timer()
         });
 
         // step hardware components
         mSequencer.step(cyclesToStep);
-        mHf.gen1.step(cyclesToStep);
-        mHf.gen2.step(cyclesToStep);
-        mHf.gen3.step(cyclesToStep);
-        mHf.gen4.step(cyclesToStep);
+        mCf.ch1.step(cyclesToStep);
+        mCf.ch2.step(cyclesToStep);
+        mCf.ch3.step(cyclesToStep);
+        mCf.ch4.step(cyclesToStep);
 
         // update cycle counters
         cycles -= cyclesToStep;
@@ -240,23 +210,23 @@ void Apu::getOutput(int8_t &leftdelta, int8_t &rightdelta) {
     uint8_t output;
 
     if constexpr (ch == 0) {
-        output = mHf.gen1.output();
+        output = mCf.ch1.output();
     } else if constexpr (ch == 1) {
-        output = mHf.gen2.output();
+        output = mCf.ch2.output();
     } else if constexpr (ch == 2) {
-        output = mHf.gen3.output();
+        output = mCf.ch3.output();
     } else {
-        output = mHf.gen4.output();
+        output = mCf.ch4.output();
     }
 
     if constexpr (ch != 2) {
         if (output) {
             if constexpr (ch == 0) {
-                output = mHf.env1.value();
+                output = mCf.ch1.volume();
             } else if constexpr (ch == 1) {
-                output = mHf.env2.value();
+                output = mCf.ch2.volume();
             } else {
-                output = mHf.env4.value();
+                output = mCf.ch4.volume();
             }
         }
     }

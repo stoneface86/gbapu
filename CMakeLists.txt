@@ -22,15 +22,13 @@ add_library(blip_buf STATIC "${BLIP_BUF_DIR}/blip_buf.c")
 set(GBAPU_SRC
     "src/Apu.cpp"
     "src/Buffer.cpp"
-    "src/Envelope.cpp"
-    "src/Generator.cpp"
-    "src/LengthCounter.cpp"
-    "src/NoiseGen.cpp"
-    "src/PulseGen.cpp"
+    "src/Channel.cpp"
+    "src/NoiseChannel.cpp"
+    "src/PulseChannel.cpp"
     "src/Sequencer.cpp"
-    "src/Sweep.cpp"
+    "src/SweepPulseChannel.cpp"
     "src/Timer.cpp"
-    "src/WaveGen.cpp"
+    "src/WaveChannel.cpp"
  )
 
 add_library(gbapu STATIC ${GBAPU_SRC})

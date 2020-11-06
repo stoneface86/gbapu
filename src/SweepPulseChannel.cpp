@@ -1,43 +1,42 @@
 
-#include "gbapu/Sweep.hpp"
-
+#include "gbapu/SweepPulseChannel.hpp"
 
 namespace gbapu {
 
-
-Sweep::Sweep(PulseGen &gen) noexcept :
-    mGen(gen),
+SweepPulseChannel::SweepPulseChannel() noexcept :
+    PulseChannel(),
     mSweepMode(Gbs::DEFAULT_SWEEP_MODE),
     mSweepTime(Gbs::DEFAULT_SWEEP_TIME),
     mSweepShift(Gbs::DEFAULT_SWEEP_SHIFT),
     mSweepCounter(0),
-    mRegister(Gbs::DEFAULT_SWEEP_REGISTER),
+    mSweepRegister(Gbs::DEFAULT_SWEEP_REGISTER),
     mShadow(0)
 {
 }
 
-uint8_t Sweep::readRegister() const noexcept {
-    return mRegister;
+uint8_t SweepPulseChannel::readSweep() const noexcept {
+    return mSweepRegister;
 }
 
-void Sweep::reset() noexcept {
-    mRegister = Gbs::DEFAULT_SWEEP_REGISTER;
+void SweepPulseChannel::reset() noexcept {
+    mSweepRegister = Gbs::DEFAULT_SWEEP_REGISTER;
     restart();
 }
 
-void Sweep::restart() noexcept {
+void SweepPulseChannel::restart() noexcept {
+    PulseChannel::restart();
     mSweepCounter = 0;
-    mSweepShift = mRegister & 0x7;
-    mSweepMode = static_cast<Gbs::SweepMode>((mRegister >> 3) & 1);
-    mSweepTime = (mRegister >> 4) & 0x7;
-    mShadow = mGen.frequency();
+    mSweepShift = mSweepRegister & 0x7;
+    mSweepMode = static_cast<Gbs::SweepMode>((mSweepRegister >> 3) & 1);
+    mSweepTime = (mSweepRegister >> 4) & 0x7;
+    mShadow = mFrequency;
 }
 
-void Sweep::writeRegister(uint8_t reg) noexcept {
-    mRegister = reg & 0x7F;
+void SweepPulseChannel::writeSweep(uint8_t reg) noexcept {
+    mSweepRegister = reg & 0x7F;
 }
 
-void Sweep::trigger() noexcept {
+void SweepPulseChannel::stepSweep() noexcept {
     if (mSweepTime) {
         if (++mSweepCounter >= mSweepTime) {
             mSweepCounter = 0;
@@ -51,20 +50,19 @@ void Sweep::trigger() noexcept {
                 } else {
                     sweepfreq = mShadow + sweepfreq;
                     if (sweepfreq > Gbs::MAX_FREQUENCY) {
-                        // sweep will overflow, disable the oscillator
-                        mGen.disable();
+                        // sweep will overflow, disable the channel
+                        disable();
                         return;
                     }
                 }
                 // no overflow/underflow
                 // write-back the shadow register to CH1's frequency register
-                mGen.setFrequency(static_cast<uint16_t>(sweepfreq));
+                mFrequency = static_cast<uint16_t>(sweepfreq);
+                setPeriod();
                 mShadow = sweepfreq;
             }
         }
     }
 }
-
-
 
 }

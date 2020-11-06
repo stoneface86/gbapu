@@ -1,34 +1,27 @@
 
 #pragma once
 
-#include "gbapu/PulseGen.hpp"
+#include "gbapu/PulseChannel.hpp"
 #include "gbapu/constants.hpp"
-
-#include <cstdint>
-
 
 namespace gbapu {
 
-
-class Sweep {
+class SweepPulseChannel : public PulseChannel {
 
 public:
+    SweepPulseChannel() noexcept;
 
-    Sweep(PulseGen &gen) noexcept;
-
-    uint8_t readRegister() const noexcept;
+    uint8_t readSweep() const noexcept;
 
     void reset() noexcept;
 
     void restart() noexcept;
 
-    void writeRegister(uint8_t reg) noexcept;
+    void writeSweep(uint8_t reg) noexcept;
 
-    void trigger() noexcept;
+    void stepSweep() noexcept;
 
 private:
-
-    PulseGen &mGen;
 
     Gbs::SweepMode mSweepMode;
     uint8_t mSweepTime;
@@ -40,12 +33,11 @@ private:
     // Bits 0-2: Shift amount
     // Bit    3: Sweep mode (1 = subtraction)
     // Bits 4-6: Period
-    uint8_t mRegister;
+    uint8_t mSweepRegister;
 
     // shadow register, CH1's frequency gets copied here on reset (initalization)
     int16_t mShadow;
 
 };
-
 
 }

@@ -1,5 +1,6 @@
 
-#include "gbapu/PulseGen.hpp"
+#include "gbapu/PulseChannel.hpp"
+#include "gbapu/constants.hpp"
 
 namespace {
 
@@ -29,57 +30,50 @@ static constexpr uint8_t DEFAULT_OUTPUT = (DUTY_MASK >> (gbapu::Gbs::DEFAULT_DUT
 namespace gbapu {
 
 
-PulseGen::PulseGen() noexcept :
-    Generator(DEFAULT_PERIOD, DEFAULT_OUTPUT),
-    mFrequency(Gbs::DEFAULT_FREQUENCY),
-    mDuty(Gbs::DEFAULT_DUTY),
-    mDutyWaveform(dutyWaveform(Gbs::DEFAULT_DUTY)),
+PulseChannel::PulseChannel() noexcept :
+    EnvChannelBase(2048 * 4, 64),
+    mDuty(3),
+    mDutyWaveform(dutyWaveform(3)),
     mDutyCounter(0)
 {
 }
 
-Gbs::Duty PulseGen::duty() const noexcept {
+uint8_t PulseChannel::duty() const noexcept {
     return mDuty;
 }
 
-uint16_t PulseGen::frequency() const noexcept {
-    return mFrequency;
-}
-
-void PulseGen::reset() noexcept {
-    setFrequency(Gbs::DEFAULT_FREQUENCY);
-    setDuty(Gbs::DEFAULT_DUTY);
+void PulseChannel::reset() noexcept {
+    EnvChannelBase::reset();
+    mFrequency = 0;
+    writeDuty(3);
     restart();
 }
 
 // restarting the pulse channel resets the duty counter
 // this may result in a click sound
-void PulseGen::restart() noexcept {
-    Generator::restart();
+void PulseChannel::restart() noexcept {
+    EnvChannelBase::restart();
     mDutyCounter = 0;
     setOutput();
 }
 
-void PulseGen::setDuty(Gbs::Duty duty) noexcept {
+void PulseChannel::writeDuty(uint8_t duty) noexcept {
     mDuty = duty;
     mDutyWaveform = dutyWaveform(duty);
 }
 
-void PulseGen::setFrequency(uint16_t frequency) noexcept {
-    frequency &= Gbs::MAX_FREQUENCY;
-    mFrequency = frequency;
-    mPeriod = (2048 - mFrequency) * PULSE_MULTIPLIER;
+void PulseChannel::stepOscillator() noexcept {
+    // this implementation uses bit shifting instead of a lookup table
+    
+    // increment duty counter
+    mDutyCounter = (mDutyCounter + 1) & 0x7;
+    setOutput();
+    
+
 }
 
-void PulseGen::step(uint32_t cycles) noexcept {
-    // this implementation uses bit shifting instead of a lookup table
-
-    if (stepTimer(cycles)) {
-        // increment duty counter
-        mDutyCounter = (mDutyCounter + 1) & 0x7;
-        setOutput();
-    }
-
+void PulseChannel::setPeriod() noexcept {
+    mPeriod = (2048 - mFrequency) * PULSE_MULTIPLIER;
 }
 
 

@@ -36,9 +36,9 @@ Sequencer::Trigger const Sequencer::TRIGGER_SEQUENCE[] = {
     {0,     CYCLES_PER_STEP * 2,    TriggerType::env}
 };
 
-Sequencer::Sequencer(HardwareFile &hf) noexcept :
+Sequencer::Sequencer(ChannelFile &cf) noexcept :
     Timer(DEFAULT_PERIOD),
-    mHf(hf),
+    mCf(cf),
     mTriggerIndex(0)
 {
 }
@@ -54,18 +54,18 @@ void Sequencer::step(uint32_t cycles) noexcept {
         Trigger const &trigger = TRIGGER_SEQUENCE[mTriggerIndex];
         switch (trigger.type) {
             case TriggerType::lcSweep:
-                mHf.sweep1.trigger();
+                mCf.ch1.stepSweep();
                 [[fallthrough]];
             case TriggerType::lc:
-                mHf.lc1.trigger();
-                mHf.lc2.trigger();
-                mHf.lc3.trigger();
-                mHf.lc4.trigger();
+                mCf.ch1.stepLengthCounter();
+                mCf.ch2.stepLengthCounter();
+                mCf.ch3.stepLengthCounter();
+                mCf.ch4.stepLengthCounter();
                 break;
             case TriggerType::env:
-                mHf.env1.trigger();
-                mHf.env2.trigger();
-                mHf.env4.trigger();
+                mCf.ch1.stepEnvelope();
+                mCf.ch2.stepEnvelope();
+                mCf.ch4.stepEnvelope();
                 break;
         }
         mPeriod = trigger.nextPeriod;

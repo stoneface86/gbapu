@@ -2,7 +2,7 @@
 #pragma once
 
 #include "gbapu/Buffer.hpp"
-#include "gbapu/HardwareFile.hpp"
+#include "gbapu/ChannelFile.hpp"
 #include "gbapu/Sequencer.hpp"
 
 #include <memory>
@@ -71,7 +71,7 @@ private:
 
     Buffer &mBuffer;
 
-    HardwareFile mHf;
+    ChannelFile mCf;
     Sequencer mSequencer;
 
     uint32_t mCycletime;

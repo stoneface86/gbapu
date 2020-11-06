@@ -1,5 +1,5 @@
 
-#include "gbapu/NoiseGen.hpp"
+#include "gbapu/NoiseChannel.hpp"
 
 constexpr uint16_t LFSR_INIT = 0x7FFF;
 #define calcCounterMax(drf, scf) (DRF_TABLE[drf] << (scf+1))
@@ -21,29 +21,28 @@ static const uint8_t DRF_TABLE[] = {
 
 namespace gbapu {
 
-NoiseGen::NoiseGen() noexcept :
-    Generator(calcCounterMax(Gbs::DEFAULT_DRF, Gbs::DEFAULT_SCF), 0),
-    mRegister(Gbs::DEFAULT_NOISE_REGISTER),
+NoiseChannel::NoiseChannel() noexcept :
+    EnvChannelBase(16, 64),
     mValidScf(true),
     mStepSelection(Gbs::DEFAULT_STEP_COUNT),
     mLfsr(LFSR_INIT)
 {
 }
 
-void NoiseGen::reset() noexcept {
-    mRegister = Gbs::DEFAULT_NOISE_REGISTER;
+void NoiseChannel::reset() noexcept {
+    EnvChannelBase::reset();
     mValidScf = true;
-    restart();
+    mLfsr = LFSR_INIT;
 }
 
-void NoiseGen::restart() noexcept {
-    Generator::restart();
+void NoiseChannel::restart() noexcept {
     mLfsr = LFSR_INIT;
+    // bit 0 inverted of LFSR_INIT is 0
     mOutput = 0;
 }
 
-void NoiseGen::step(uint32_t cycles) noexcept {
-    if (stepTimer(cycles) && mValidScf) {
+void NoiseChannel::stepOscillator() noexcept {
+    if (mValidScf) {
 
         // xor bits 1 and 0 of the lfsr
         uint8_t result = (mLfsr & 0x1) ^ ((mLfsr >> 1) & 0x1);
@@ -62,15 +61,10 @@ void NoiseGen::step(uint32_t cycles) noexcept {
     
 }
 
-uint8_t NoiseGen::readRegister() const noexcept {
-    return mRegister;
-}
-
-void NoiseGen::writeRegister(uint8_t reg) noexcept {
-    mRegister = reg;
-    uint8_t drf = mRegister & 0x7;
-    mStepSelection = static_cast<Gbs::NoiseSteps>((mRegister >> 3) & 1);
-    uint8_t scf = mRegister >> 4;
+void NoiseChannel::setPeriod() noexcept {
+    uint8_t drf = mFrequency & 0x7;
+    mStepSelection = static_cast<Gbs::NoiseSteps>((mFrequency >> 3) & 1);
+    uint8_t scf = mFrequency >> 4;
     mValidScf = scf < 0xD; // obscure behavior: if scf >= 0xD then the channel receives no clocks
     mPeriod = calcCounterMax(drf, scf);
 }

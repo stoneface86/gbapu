@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include "gbapu/HardwareFile.hpp"
+#include "gbapu/ChannelFile.hpp"
 
 namespace gbapu {
 
@@ -10,7 +10,7 @@ class Sequencer : public Timer {
 
 public:
 
-    Sequencer(HardwareFile &hf) noexcept;
+    Sequencer(ChannelFile &cf) noexcept;
 
     void reset() noexcept;
 
@@ -32,7 +32,7 @@ private:
 
     static Trigger const TRIGGER_SEQUENCE[];
 
-    HardwareFile &mHf;
+    ChannelFile &mCf;
     uint32_t mTriggerIndex;
 
 
