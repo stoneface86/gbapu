@@ -1,9 +1,18 @@
 # gbapu
 Gameboy APU emulator
 
-This is a static library for a gameboy APU emulator. Based off of trackerboy's emulation based synthesizer.
-I'm rewriting it here as an actual emulator with accuracy as a priority. On completion this library
-will replace Trackerboy's synthesizer.
+This is a static library for a gameboy APU emulator. This library was written
+for use in [trackerboy][trackerboy-url], a gameboy music tracker, but can also
+be used in other projects. The library produces high quality audio using
+blargg's [blip_buf][blip-buf-url] library. 
+
+## Building
+
+Build the library using CMake and a C++ compiler that supports the C++17 standard.
+The only dependency is blip_buf (v1.1.0) and is included in this repository.
+
+To build the demos, set the `GBAPU_DEMOS` option to ON when configuring. The demo
+program creates a bunch of wav files demonstrating the use of the emulator.
 
 ## Usage
 
@@ -12,8 +21,8 @@ audio samples.
 
 ```cpp
 // samplerate = 48000 Hz
-Buffer buffer(48000);
-Apu apu(buffer);
+gbapu::Buffer buffer(48000);
+gbapu::Apu apu(buffer);
 ```
 
 When your emulator accesses a sound register via memory mapped IO, just call
@@ -51,8 +60,19 @@ apu.step(4); // 4 cycles, xor a is 1, ldh is 3
 
 Then do the register write
 ```cpp
-apu.writeRegister(Apu::REG_NR12, 0); // a was zero
+apu.writeRegister(Apu::REG_NR12, 0, 0); // a was zero, step 0 cycles
 ```
+
+Alternatively, you can call `writeRegister` with the amount of cycles to step
+before doing the write. This way you don't have to call `step` first.
+
+```cpp
+apu.writeRegister(Apu::REG_NR12, 0, 4); // a was zero, step 4 cycles first
+```
+
+By default, the read and write register methods will step 3 cycles before
+accessing the register. The default is 3 since the `ldh` instruction takes
+3 cycles to execute and is the most common way to access sound registers.
 
 ## Notes
 
@@ -65,49 +85,30 @@ apu.writeRegister(Apu::REG_NR12, 0); // a was zero
    bandlimited one. Default quality setting is the highest.
  * The Buffer has a volume setting, default is 100% or 0.0 dB
  * The Buffer size and samplerate can be changed at any time, just call
-   `Buffer::resize()` after making the change. Just be sure to call `Apu::endFrame`
-   first.
+   `Buffer::resize()` after making the change. Also call `Apu::endFrame`
+   beforehand.
 
-## Obscure behavior
+## References
 
-The following is a list of obscure behavior / hardware bugs present in the gameboy APU. In order to
-ensure accurate emulation, these behaviors will be emulated as well by the emulator. [Reference](https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware#Obscure_Behavior)
+Reference material used when writing this library
 
- 2. First nibble in waveram is not played first on retrigger
-
-This is due to the waveposition being incremented first on clock, the sample
-is taken at this new position
-
- 3. On CH1/CH2 trigger, low 2 bits of frequency timer are not modified
-
- Since the period for CH1/CH2 is a multiple of 4, the low 2 bits should always
- be 0.
-
- 4. CH4 receives no clocks when SCF >= 14
-
- 5. If the wave channel is enabled, accessing any byte from $FF30-$FF3F is
-    equivalent to accessing the current byte selected by the waveform position.
-    Further, on the DMG accesses will only work in this manner if made within a
-    couple of clocks of the wave channel accessing wave RAM; if made at any
-    other time, reads return $FF and writes have no effect.
-
-Implemented, if the access was made within 4 clocks of the channel access then
-the read/write will work.
-
-### Zombie mode
-
-Writing to the NRx2 register without retrigger immediately afterwards results in
-strange behavior. This is known as zombie mode, where the channel volume can be
-altered manually.
-
-The exact behavior is not well documented and varies across models, but the most
-consistent is the following:
- * Write V8 to the register where V is the initial volume
- * Retrigger the channel
- * Then the volume can be manually controlled by writing $08 to the register, which
-   increments the current volume by 1.
+ * [Pan Docs][pan-docs-url]
+ * https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware
+ * [Official Gameboy programming manual][gameboy-manual-url]
 
 ## Not implemented
 
 The following is a list of behavior that is not implemented by this emulator:
  * Vin terminal mixing
+ * Zombie mode: more research is needed
+
+# License
+
+This project is licensed under the MIT License - See [LICENSE](LICENSE) for
+details.
+
+[trackerboy-url]: https://github.com/stoneface86/trackerboy
+[blip-buf-url]: https://code.google.com/archive/p/blip-buf/
+[obscure-behavior-reference]: https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware#Obscure_Behavior
+[pan-docs-url]: https://gbdev.io/pandocs/#sound-controller
+[gameboy-manual-url]: https://archive.org/download/GameBoyProgManVer1.1/GameBoyProgManVer1.1.pdf
