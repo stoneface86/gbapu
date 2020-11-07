@@ -19,26 +19,17 @@ int main() {
     Apu apu(buffer);
 
     // power on
-    apu.step(3);
     apu.writeRegister(Apu::REG_NR52, 0x80);
     // enable terminals
-    apu.step(3);
     apu.writeRegister(Apu::REG_NR51, 0xFF);
-    apu.step(3);
     apu.writeRegister(Apu::REG_NR50, 0x77);
 
 
-    apu.writeRegister(Apu::REG_NR10, 0x37);
-    apu.writeRegister(Apu::REG_NR11, 0x8F);
+    apu.writeRegister(Apu::REG_NR10, 0x3f);
+    apu.writeRegister(Apu::REG_NR11, 0xC0);
     // CH1 Envelope = $f0 (constant volume 15)
-    apu.step(3);
-    apu.writeRegister(Apu::REG_NR12, 0xF4);
-    apu.step(3);
-    apu.writeRegister(Apu::REG_NR14, 0xC7);
-
-    apu.writeRegister(Apu::REG_NR42, 0xF0);
-    apu.writeRegister(Apu::REG_NR43, 0x13);
-    apu.writeRegister(Apu::REG_NR44, 0x80);
+    apu.writeRegister(Apu::REG_NR12, 0xF0);
+    apu.writeRegister(Apu::REG_NR14, 0x87);
 
     
 
