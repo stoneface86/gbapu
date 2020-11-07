@@ -414,6 +414,11 @@ class Apu {
 
 public:
 
+    enum class Model {
+        dmg,
+        cgb
+    };
+
     enum Reg {
         // CH1 - Square 1 --------------------------------------------------------
         REG_NR10 = 0x10, // -PPP NSSS | sweep period, negate, shift
@@ -447,10 +452,11 @@ public:
         REG_WAVERAM = 0x30
     };
 
-    Apu(Buffer &buffer);
+    Apu(Buffer &buffer, Model model = Model::dmg);
     ~Apu() = default;
 
     void reset() noexcept;
+    void reset(Model model) noexcept;
 
     void step(uint32_t cycles);
 
@@ -470,6 +476,8 @@ private:
 
 
     Buffer &mBuffer;
+
+    Model mModel;
 
     _internal::ChannelFile mCf;
     _internal::Sequencer mSequencer;

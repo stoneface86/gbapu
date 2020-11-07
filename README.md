@@ -94,6 +94,19 @@ is taken at this new position
 Implemented, if the access was made within 4 clocks of the channel access then
 the read/write will work.
 
+### Zombie mode
+
+Writing to the NRx2 register without retrigger immediately afterwards results in
+strange behavior. This is known as zombie mode, where the channel volume can be
+altered manually.
+
+The exact behavior is not well documented and varies across models, but the most
+consistent is the following:
+ * Write V8 to the register where V is the initial volume
+ * Retrigger the channel
+ * Then the volume can be manually controlled by writing $08 to the register, which
+   increments the current volume by 1.
+
 ## Not implemented
 
 The following is a list of behavior that is not implemented by this emulator:

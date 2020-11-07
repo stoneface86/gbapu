@@ -5,8 +5,9 @@
 
 namespace gbapu {
 
-Apu::Apu(Buffer &buffer) :
+Apu::Apu(Buffer &buffer, Model model) :
     mBuffer(buffer),
+    mModel(model),
     mCf(),
     mSequencer(mCf),
     mLeftVolume(1),
@@ -32,6 +33,11 @@ void Apu::reset() noexcept {
     
     mEnabled = false;
 
+}
+
+void Apu::reset(Model model) noexcept {
+    mModel = model;
+    reset();
 }
 
 uint8_t Apu::readRegister(uint16_t addr) {
@@ -150,7 +156,7 @@ uint8_t Apu::readRegister(Reg reg) {
         case REG_WAVERAM + 13:
         case REG_WAVERAM + 14:
         case REG_WAVERAM + 15:
-            if (mCf.ch3.canAccessRam(mCycletime)) {
+            if (mModel == Model::cgb || mCf.ch3.canAccessRam(mCycletime)) {
                 auto waveram = mCf.ch3.waveram();
                 return waveram[reg - REG_WAVERAM];
             }
@@ -277,7 +283,8 @@ void Apu::writeRegister(Reg reg, uint8_t value) {
         case REG_WAVERAM + 15:
             // if CH3's DAC is enabled, then the write goes to the current waveposition
             // this can only be done within a few clocks when CH3 accesses waveram, otherwise the write has no effect
-            if (mCf.ch3.canAccessRam(mCycletime)) {
+            // this behavior was fixed for the CGB, so we can access waveram whenever
+            if (mModel == Model::cgb || mCf.ch3.canAccessRam(mCycletime)) {
                 auto waveram = mCf.ch3.waveram();
                 waveram[reg - REG_WAVERAM] = value;
             }
