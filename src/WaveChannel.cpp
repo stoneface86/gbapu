@@ -15,12 +15,18 @@ static constexpr unsigned WAVE_MULTIPLIER = 2;
 
 static constexpr uint32_t DEFAULT_PERIOD = (2048 - 0) * WAVE_MULTIPLIER;
 
+// Obscure behavior on the DMG - this is the number of cycles after the channel is
+// clocked by the frequency timer that we can access waveram while the channel is enabled
+// note that this threshold is a guess - further research is needed to find the limit
+static constexpr int RAM_ACCESS_THRESHOLD = 4;
+
 }
 
 namespace gbapu::_internal {
 
 WaveChannel::WaveChannel() noexcept :
     ChannelBase(DEFAULT_PERIOD, 0),
+    mLastRamAccess(0),
     mVolumeShift(0),
     mWaveIndex(0),
     mSampleBuffer(0),
@@ -30,6 +36,16 @@ WaveChannel::WaveChannel() noexcept :
 
 uint8_t* WaveChannel::waveram() noexcept {
     return mWaveram;
+}
+
+bool WaveChannel::canAccessRam(uint32_t timestamp) const noexcept {
+    if (mDacOn) {
+        int64_t diff = timestamp - mLastRamAccess;
+        return (diff >= 0 && diff < RAM_ACCESS_THRESHOLD);
+    } else {
+        // can always access ram when the DAC is off
+        return true;
+    }
 }
 
 uint8_t WaveChannel::readVolume() const noexcept {
@@ -45,6 +61,7 @@ uint8_t WaveChannel::readVolume() const noexcept {
 
 void WaveChannel::reset() noexcept {
     ChannelBase::reset();
+    mLastRamAccess = 0;
     mVolumeShift = 0;
     std::fill_n(mWaveram, constants::WAVE_RAMSIZE, static_cast<uint8_t>(0));
     mSampleBuffer = 0;
@@ -74,7 +91,9 @@ void WaveChannel::writeVolume(uint8_t volume) noexcept {
     setOutput();
 }
 
-void WaveChannel::stepOscillator() noexcept {
+void WaveChannel::stepOscillator(uint32_t timestamp) noexcept {
+
+    mLastRamAccess = timestamp;
 
     mWaveIndex = (mWaveIndex + 1) & 0x1F;
     mSampleBuffer = mWaveram[mWaveIndex >> 1];

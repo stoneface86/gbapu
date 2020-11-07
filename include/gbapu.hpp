@@ -151,7 +151,7 @@ public:
 
 protected:
 
-    void stepOscillator() noexcept;
+    void stepOscillator(uint32_t timestamp) noexcept;
 
     void setPeriod() noexcept;
 
@@ -205,6 +205,13 @@ public:
 
     WaveChannel() noexcept;
 
+    //
+    // Returns true if the waveram can be freely access
+    // Always true if the DAC is off
+    // if the DAC is on then true is returned if timestamp is near the timestamp of the channel's
+    // last access
+    bool canAccessRam(uint32_t timestamp) const noexcept;
+
     uint8_t* waveram() noexcept;
 
     uint8_t readVolume() const noexcept;
@@ -215,20 +222,18 @@ public:
 
     void writeVolume(uint8_t volume) noexcept;
 
-    //Gbs::WaveVolume volume() const noexcept;
-
 
 protected:
 
-    void stepOscillator() noexcept;
+    void stepOscillator(uint32_t timestamp) noexcept;
 
     void setPeriod() noexcept;
 
 private:
 
-
-
     void setOutput();
+
+    uint32_t mLastRamAccess;
 
     //Gbs::WaveVolume mVolume;
     uint8_t mVolumeShift;
@@ -252,7 +257,7 @@ public:
     void reset() noexcept;
 
 protected:
-    void stepOscillator() noexcept;
+    void stepOscillator(uint32_t timestamp) noexcept;
 
     void setPeriod() noexcept;
 
@@ -272,9 +277,9 @@ template<class Base>
 class Channel : public Base {
 
 public:
-    void step(uint32_t cycles) noexcept {
+    void step(uint32_t timestamp, uint32_t cycles) noexcept {
         if (mDacOn && stepTimer(cycles)) {
-            Base::stepOscillator();
+            Base::stepOscillator(timestamp + cycles);
         }
     }
 

@@ -46,7 +46,9 @@ void NoiseChannel::restart() noexcept {
     mOutput = 0;
 }
 
-void NoiseChannel::stepOscillator() noexcept {
+void NoiseChannel::stepOscillator(uint32_t timestamp) noexcept {
+    (void)timestamp;
+
     if (mValidScf) {
 
         // xor bits 1 and 0 of the lfsr

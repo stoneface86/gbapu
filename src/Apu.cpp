@@ -150,9 +150,7 @@ uint8_t Apu::readRegister(Reg reg) {
         case REG_WAVERAM + 13:
         case REG_WAVERAM + 14:
         case REG_WAVERAM + 15:
-            // if CH3's DAC is enabled, then the write goes to the current waveposition
-            // this can only be done within a few clocks when CH3 accesses waveram, otherwise the write has no effect
-            if (!mCf.ch3.dacOn()) {
+            if (mCf.ch3.canAccessRam(mCycletime)) {
                 auto waveram = mCf.ch3.waveram();
                 return waveram[reg - REG_WAVERAM];
             }
@@ -279,7 +277,7 @@ void Apu::writeRegister(Reg reg, uint8_t value) {
         case REG_WAVERAM + 15:
             // if CH3's DAC is enabled, then the write goes to the current waveposition
             // this can only be done within a few clocks when CH3 accesses waveram, otherwise the write has no effect
-            if (!mCf.ch3.dacOn()) {
+            if (mCf.ch3.canAccessRam(mCycletime)) {
                 auto waveram = mCf.ch3.waveram();
                 waveram[reg - REG_WAVERAM] = value;
             }
@@ -333,10 +331,10 @@ void Apu::step(uint32_t cycles) {
 
         // step hardware components
         mSequencer.step(cyclesToStep);
-        mCf.ch1.step(cyclesToStep);
-        mCf.ch2.step(cyclesToStep);
-        mCf.ch3.step(cyclesToStep);
-        mCf.ch4.step(cyclesToStep);
+        mCf.ch1.step(mCycletime, cyclesToStep);
+        mCf.ch2.step(mCycletime, cyclesToStep);
+        mCf.ch3.step(mCycletime, cyclesToStep);
+        mCf.ch4.step(mCycletime, cyclesToStep);
 
         // update cycle counters
         cycles -= cyclesToStep;

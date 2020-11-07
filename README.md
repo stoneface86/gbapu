@@ -17,8 +17,8 @@ Apu apu(buffer);
 ```
 
 When your emulator accesses a sound register via memory mapped IO, just call
-`Apu::readRegister` and `Apu::writeRegister`. These methods have overloads for
-the either the register number or the register's mapped memory address.
+`Apu::readRegister` or `Apu::writeRegister`. These methods have overloads for
+either the register number or the register's mapped memory address.
 
 Then run the APU for the necessary amount of cycles.
 
@@ -73,7 +73,6 @@ apu.writeRegister(Apu::REG_NR12, 0); // a was zero
 The following is a list of obscure behavior / hardware bugs present in the gameboy APU. In order to
 ensure accurate emulation, these behaviors will be emulated as well by the emulator. [Reference](https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware#Obscure_Behavior)
 
- 1. Envelope and sweep timers treat period of 0 as 8
  2. First nibble in waveram is not played first on retrigger
 
 This is due to the waveposition being incremented first on clock, the sample
@@ -92,8 +91,8 @@ is taken at this new position
     couple of clocks of the wave channel accessing wave RAM; if made at any
     other time, reads return $FF and writes have no effect.
 
-Somewhat implemented, accessing waveram when CH3 is enabled always results in
-a read of 0xFF and the write being discarded.
+Implemented, if the access was made within 4 clocks of the channel access then
+the read/write will work.
 
 ## Not implemented
 
