@@ -29,6 +29,10 @@ NoiseChannel::NoiseChannel() noexcept :
 {
 }
 
+uint8_t NoiseChannel::readNoise() const noexcept {
+    return static_cast<uint8_t>(mFrequency);
+}
+
 void NoiseChannel::reset() noexcept {
     EnvChannelBase::reset();
     mValidScf = true;

@@ -36,8 +36,8 @@ PulseChannel::PulseChannel() noexcept :
 {
 }
 
-uint8_t PulseChannel::duty() const noexcept {
-    return mDuty;
+uint8_t PulseChannel::readDuty() const noexcept {
+    return mDuty << 6;
 }
 
 void PulseChannel::reset() noexcept {

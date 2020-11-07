@@ -17,6 +17,134 @@ Apu::Apu(Buffer &buffer) :
 {
 }
 
+uint8_t Apu::readRegister(uint16_t addr) {
+    return readRegister(static_cast<Reg>(addr & 0xFF));
+}
+
+uint8_t Apu::readRegister(Reg reg) {
+
+    /*
+    * Read masks
+    *      NRx0 NRx1 NRx2 NRx3 NRx4
+    *     ---------------------------
+    * NR1x  $80  $3F $00  $FF  $BF 
+    * NR2x  $FF  $3F $00  $FF  $BF 
+    * NR3x  $7F  $FF $9F  $FF  $BF
+    * NR4x  $FF  $FF $00  $00  $BF
+    * NR5x  $00  $00 $70
+    *
+    * $FF27-$FF2F always read back as $FF
+    */
+
+
+    // TODO: length counters can still be accessed on DMG when powered off
+    if (!mEnabled && reg < REG_NR52) {
+        // APU is disabled, ignore this read
+        return 0xFF;
+    }
+
+    switch (reg) {
+        // ===== CH1 =====
+
+        case REG_NR10:
+            return mCf.ch1.readSweep();
+        case REG_NR11:
+            return 0x3F | mCf.ch1.readDuty();
+        case REG_NR12:
+            return mCf.ch1.readEnvelope();
+        case REG_NR13:
+            return 0xFF;
+        case REG_NR14:
+            return mCf.ch1.lengthEnabled() ? 0xFF : 0xBF;
+        
+        // ===== CH2 =====
+
+        case REG_NR21:
+            return 0x3F | mCf.ch2.readDuty();
+        case REG_NR22:
+            return mCf.ch2.readEnvelope();
+        case REG_NR23:
+            return 0xFF;
+        case REG_NR24:
+            return mCf.ch2.lengthEnabled() ? 0xFF : 0xBF;
+
+        // ===== CH3 =====
+
+        case REG_NR30:
+            return mCf.ch3.dacOn() ? 0xFF : 0x7F;
+        case REG_NR31:
+            return 0xFF;
+        case REG_NR32:
+            return 0x9F | mCf.ch3.readVolume();
+        case REG_NR33:
+            return 0xFF;
+        case REG_NR34:
+            return mCf.ch3.lengthEnabled() ? 0xFF : 0xBF;
+
+        // ===== CH4 =====
+
+        case REG_NR41:
+            return 0xFF;
+        case REG_NR42:
+            return mCf.ch4.readEnvelope();
+        case REG_NR43:
+            return mCf.ch4.readNoise();
+        case REG_NR44:
+            return mCf.ch4.lengthEnabled() ? 0xFF : 0xBF;
+
+       // ===== Sound control ======
+
+        case REG_NR50:
+            // Not implemented: Vin, always read back as 0
+            return ((mLeftVolume - 1) << 4) | (mRightVolume - 1);
+        case REG_NR51:
+            return mOutputStat;
+        case REG_NR52:
+        {
+            uint8_t nr52 = mEnabled ? 0xF0 : 70;
+            if (mCf.ch1.dacOn()) {
+                nr52 |= 0x1;
+            }
+            if (mCf.ch2.dacOn()) {
+                nr52 |= 0x2;
+            }
+            if (mCf.ch3.dacOn()) {
+                nr52 |= 0x4;
+            }
+            if (mCf.ch4.dacOn()) {
+                nr52 |= 0x8;
+            }
+            return nr52;
+        }
+
+        case REG_WAVERAM:
+        case REG_WAVERAM + 1:
+        case REG_WAVERAM + 2:
+        case REG_WAVERAM + 3:
+        case REG_WAVERAM + 4:
+        case REG_WAVERAM + 5:
+        case REG_WAVERAM + 6:
+        case REG_WAVERAM + 7:
+        case REG_WAVERAM + 8:
+        case REG_WAVERAM + 9:
+        case REG_WAVERAM + 10:
+        case REG_WAVERAM + 11:
+        case REG_WAVERAM + 12:
+        case REG_WAVERAM + 13:
+        case REG_WAVERAM + 14:
+        case REG_WAVERAM + 15:
+            // if CH3's DAC is enabled, then the write goes to the current waveposition
+            // this can only be done within a few clocks when CH3 accesses waveram, otherwise the write has no effect
+            if (!mCf.ch3.dacOn()) {
+                auto waveram = mCf.ch3.waveram();
+                return waveram[reg - REG_WAVERAM];
+            }
+            return 0xFF;
+        default:
+            return 0xFF;
+    }
+}
+
 void Apu::writeRegister(uint16_t addr, uint8_t value) {
     writeRegister(static_cast<Reg>(addr & 0xFF), value);
 }
@@ -236,8 +364,8 @@ void Apu::getOutput(int8_t &leftdelta, int8_t &rightdelta) {
     uint8_t &prevR = mLastAmps[ch + 4];
     
     // convert output stat (NR51) to a mask
-    uint8_t maskL = ~((mOutputStat >> ch) & 1) + 1;
-    uint8_t maskR = ~((mOutputStat >> (ch + 4)) & 1) + 1;
+    uint8_t maskR = ~((mOutputStat >> ch) & 1) + 1;
+    uint8_t maskL = ~((mOutputStat >> (ch + 4)) & 1) + 1;
 
     int8_t outputL = output & maskL;
     int8_t outputR = output & maskR;

@@ -23,9 +23,12 @@ bool ChannelBase::dacOn() const noexcept {
     return mDacOn;
 }
 
+bool ChannelBase::lengthEnabled() const noexcept {
+    return mLengthEnabled;
+}
+
 void ChannelBase::disable() noexcept {
     mDisableMask = DISABLED;
-    mLengthEnabled = false;
 }
 
 uint16_t ChannelBase::frequency() const noexcept {
@@ -41,8 +44,10 @@ void ChannelBase::setDacEnable(bool enabled) noexcept {
 
 void ChannelBase::stepLengthCounter() noexcept {
     if (mLengthEnabled) {
-        if (--mLengthCounter == 0) {
+        if (mLengthCounter == 0) {
             disable();
+        } else {
+            --mLengthCounter;
         }
     }
 }
@@ -61,25 +66,20 @@ void ChannelBase::reset() noexcept {
     mFrequency = 0;
     mLengthCounter = 0;
     mLengthEnabled = false;
-    // move this to Timer::reset();
     mPeriod = mDefaultPeriod;
     mTimer = 0;
 }
 
 void ChannelBase::restart() noexcept {
     mTimer = mPeriod; // reload frequency timer with period
-    if (mDacOn) {
-        mDisableMask = ENABLED;
-    } else {
-        disable(); // channel is immediately disabled if the DAC is off
-    } 
-}
-
-void ChannelBase::restartLengthCounter() noexcept {
-    mLengthEnabled = mDacOn;
-    if (mLengthEnabled && mLengthCounter == 0) {
+    if (mLengthCounter == 0) {
         mLengthCounter = mLengthCounterMax;
     }
+    mDisableMask = mDacOn ? ENABLED : DISABLED;
+}
+
+void ChannelBase::setLengthCounterEnable(bool enable) {
+    mLengthEnabled = enable;
 }
 
 EnvChannelBase::EnvChannelBase(uint32_t defaultPeriod, unsigned lengthCounterMax) noexcept :
@@ -97,12 +97,11 @@ uint8_t EnvChannelBase::readEnvelope() const noexcept {
 }
 
 void EnvChannelBase::writeEnvelope(uint8_t value) noexcept {
+    setDacEnable(!!(value & 0xF8));
     mEnvelopeRegister = value;
 }
 
 void EnvChannelBase::restart() noexcept {
-    
-    setDacEnable(!!(mEnvelopeRegister & 0xF8));
     mEnvelopeCounter = 0;
     mEnvelopePeriod = mEnvelopeRegister & 0x7;
     mEnvelopeAmplify = !!(mEnvelopeRegister & 0x8);

@@ -32,6 +32,17 @@ uint8_t* WaveChannel::waveram() noexcept {
     return mWaveram;
 }
 
+uint8_t WaveChannel::readVolume() const noexcept {
+    static uint8_t const shiftToNr32[] = {
+        0x20, // mVolumeShift = 0
+        0x40, // mVolumeShift = 1
+        0x60, // mVolumeShift = 2
+        0x00, // mVolumeShift = 3 (NOT USABLE)
+        0x00  // mVolumeShift = 4
+    };
+    return shiftToNr32[mVolumeShift];
+}
+
 void WaveChannel::reset() noexcept {
     ChannelBase::reset();
     mVolumeShift = 0;
@@ -47,17 +58,19 @@ void WaveChannel::restart() noexcept {
 }
 
 void WaveChannel::writeVolume(uint8_t volume) noexcept {
+    static uint8_t const nr32ToShift[] = {
+        4, // nr32 = 0x00 (Mute)
+        0, // nr32 = 0x20 (100%)
+        1, // nr32 = 0x40 ( 50%)
+        2, // nr32 = 0x60 ( 25%)
+    };
+
     // convert nr32 register to a shift amount
     // shift = 0 : sample / 1  = 100%
     // shift = 1 : sample / 2  =  50%
     // shift = 2 : sample / 4  =  25%
     // shift = 4 : sample / 16 =   0%
-    volume = (volume >> 5) & 0x3;
-    if (volume) {
-        mVolumeShift = volume - 1;
-    } else {
-        mVolumeShift = 4; // shifting by 4 results in 0 (mute)
-    }
+    mVolumeShift = nr32ToShift[(volume >> 5) & 3];
     setOutput();
 }
 

@@ -57,6 +57,8 @@ public:
 
     bool dacOn() const noexcept;
 
+    bool lengthEnabled() const noexcept;
+
     void setDacEnable(bool enabled) noexcept;
 
     void writeLengthCounter(uint8_t value) noexcept;
@@ -67,8 +69,6 @@ public:
 
     void restart() noexcept;
 
-    void restartLengthCounter() noexcept;
-
     void stepLengthCounter() noexcept;
 
 protected:
@@ -77,18 +77,21 @@ protected:
 
     void disable() noexcept;
 
+    void setLengthCounterEnable(bool enable);
+
     uint16_t frequency() const noexcept;
 
     uint16_t mFrequency; // 0-2047 (for noise channel only 8 bits are used)
 
     uint8_t mOutput;
+    bool mDacOn;
 
 private:
     static constexpr uint8_t ENABLED = 0xFF;
     static constexpr uint8_t DISABLED = 0x00;
 
     uint8_t mDisableMask;
-    bool mDacOn;
+    
 
     unsigned mLengthCounter;
     bool mLengthEnabled;
@@ -135,12 +138,12 @@ public:
 
     PulseChannel() noexcept;
 
-    uint8_t duty() const noexcept;
-
     //
     // Set the duty of the pulse. Does not require restart.
     //
     void writeDuty(uint8_t duty) noexcept;
+
+    uint8_t readDuty() const noexcept;
 
     void reset() noexcept;
 
@@ -204,6 +207,8 @@ public:
 
     uint8_t* waveram() noexcept;
 
+    uint8_t readVolume() const noexcept;
+
     void reset() noexcept;
 
     void restart() noexcept;
@@ -240,6 +245,8 @@ public:
 
     NoiseChannel() noexcept;
 
+    uint8_t readNoise() const noexcept;
+
     void restart() noexcept;
 
     void reset() noexcept;
@@ -266,7 +273,7 @@ class Channel : public Base {
 
 public:
     void step(uint32_t cycles) noexcept {
-        if (stepTimer(cycles)) {
+        if (mDacOn && stepTimer(cycles)) {
             Base::stepOscillator();
         }
     }
@@ -279,11 +286,10 @@ public:
     void writeFrequencyMsb(uint8_t value) {
         mFrequency = (mFrequency & 0x00FF) | ((value & 0x7) << 8);
         Base::setPeriod();
+        setLengthCounterEnable(!!(value & 0x40));
+
         if (!!(value & 0x80)) {
             Base::restart();
-            if (!!(value & 0x40)) {
-                restartLengthCounter();
-            }
         }
     }
 };
@@ -446,7 +452,7 @@ public:
     void endFrame();
 
     uint8_t readRegister(uint16_t addr);
-    uint8_t readRegister(uint8_t reg);
+    uint8_t readRegister(Reg reg);
 
     void writeRegister(uint16_t addr, uint8_t value);
     void writeRegister(Reg reg, uint8_t value);
