@@ -445,7 +445,7 @@ public:
     Apu(Buffer &buffer);
     ~Apu() = default;
 
-    void reset();
+    void reset() noexcept;
 
     void step(uint32_t cycles);
 

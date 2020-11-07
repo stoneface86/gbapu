@@ -9,12 +9,29 @@ Apu::Apu(Buffer &buffer) :
     mBuffer(buffer),
     mCf(),
     mSequencer(mCf),
-    mLeftVolume(constants::MAX_TERM_VOLUME + 1),
-    mRightVolume(constants::MAX_TERM_VOLUME + 1),
+    mLeftVolume(1),
+    mRightVolume(1),
     mOutputStat(0),
     mLastAmps{ 0 },
     mEnabled(false)
 {
+}
+
+void Apu::reset() noexcept {
+    endFrame();
+
+    mSequencer.reset();
+    mCf.ch1.reset();
+    mCf.ch2.reset();
+    mCf.ch3.reset();
+    mCf.ch4.reset();
+    mOutputStat = 0;
+    mLeftVolume = 1;
+    mRightVolume = 1;
+    std::fill_n(mLastAmps, 8, static_cast<uint8_t>(0));
+    
+    mEnabled = false;
+
 }
 
 uint8_t Apu::readRegister(uint16_t addr) {
