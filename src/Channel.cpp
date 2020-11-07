@@ -67,7 +67,7 @@ void ChannelBase::reset() noexcept {
     mLengthCounter = 0;
     mLengthEnabled = false;
     mPeriod = mDefaultPeriod;
-    mTimer = 0;
+    mTimer = mPeriod;
 }
 
 void ChannelBase::restart() noexcept {
