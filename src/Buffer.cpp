@@ -24,11 +24,11 @@ struct Buffer::Internal {
 };
 
 
-Buffer::Buffer(unsigned samplerate, unsigned buffersize) :
+Buffer::Buffer(unsigned samplerate, size_t buffersizeInSamples) :
     mInternal(new Internal()),
     mIsHighQuality(true),
     mSamplerate(samplerate),
-    mBuffersize(buffersize),
+    mBuffersize(buffersizeInSamples),
     mResizeRequired(true)
 {
     setVolume(100);
@@ -71,9 +71,9 @@ void Buffer::setSamplerate(unsigned samplerate) {
     }
 }
 
-void Buffer::setBuffersize(unsigned milleseconds) {
-    if (mBuffersize != milleseconds) {
-        mBuffersize = milleseconds;
+void Buffer::setBuffersize(size_t samples) {
+    if (mBuffersize != samples) {
+        mBuffersize = samples;
         mResizeRequired = true;
     }
 }
@@ -82,12 +82,11 @@ void Buffer::resize() {
 
     if (mResizeRequired) {
 
-        size_t samples = mSamplerate * mBuffersize / 1000;
         for (int i = 0; i != 2; ++i) {
             auto &bbuf = mInternal->bbuf[i];
             blip_delete(bbuf);
-            bbuf = blip_new(samples);
-            blip_set_rates(bbuf, 4194304.0, mSamplerate);
+            bbuf = blip_new(mBuffersize);
+            blip_set_rates(bbuf, constants::CLOCK_SPEED<double>, mSamplerate);
         }
 
         mResizeRequired = false;

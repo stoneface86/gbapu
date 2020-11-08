@@ -42,11 +42,7 @@ void Apu::reset(Model model) noexcept {
     reset();
 }
 
-uint8_t Apu::readRegister(uint16_t addr, uint32_t autostep) {
-    return readRegister(static_cast<Reg>(addr & 0xFF), autostep);
-}
-
-uint8_t Apu::readRegister(Reg reg, uint32_t autostep) {
+uint8_t Apu::readRegister(uint8_t reg, uint32_t autostep) {
 
     step(autostep);
 
@@ -170,11 +166,7 @@ uint8_t Apu::readRegister(Reg reg, uint32_t autostep) {
     }
 }
 
-void Apu::writeRegister(uint16_t addr, uint8_t value, uint32_t autostep) {
-    writeRegister(static_cast<Reg>(addr & 0xFF), value, autostep);
-}
-
-void Apu::writeRegister(Reg reg, uint8_t value, uint32_t autostep) {
+void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
     step(autostep);
 
     // TODO: length counters can still be accessed on DMG when powered off
@@ -356,6 +348,14 @@ void Apu::step(uint32_t cycles) {
         cycles -= cyclesToStep;
         mCycletime += cyclesToStep;
     }
+}
+
+void Apu::stepTo(uint32_t time) {
+    if (time <= mCycletime) {
+        return;
+    }
+
+    step(time - mCycletime);
 }
 
 void Apu::endFrame() {

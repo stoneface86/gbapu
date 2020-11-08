@@ -360,7 +360,7 @@ class Buffer {
 
 public:
 
-    Buffer(unsigned samplerate, unsigned buffersize = 100);
+    Buffer(unsigned samplerate, size_t buffersizeInSamples);
     ~Buffer();
 
     // access
@@ -380,7 +380,7 @@ public:
 
     void setSamplerate(unsigned samplerate);
 
-    void setBuffersize(unsigned milliseconds);
+    void setBuffersize(size_t samples);
 
     void resize();
 
@@ -397,7 +397,7 @@ private:
     bool mIsHighQuality;
     unsigned mVolumeStep;
     unsigned mSamplerate;
-    unsigned mBuffersize;
+    size_t mBuffersize;
     bool mResizeRequired;
 
 };
@@ -452,13 +452,13 @@ public:
 
     void step(uint32_t cycles);
 
+    void stepTo(uint32_t time);
+
     void endFrame();
 
-    uint8_t readRegister(uint16_t addr, uint32_t autostep = 3);
-    uint8_t readRegister(Reg reg, uint32_t autostep = 3);
+    uint8_t readRegister(uint8_t reg, uint32_t autostep = 3);
 
-    void writeRegister(uint16_t addr, uint8_t value, uint32_t autostep = 3);
-    void writeRegister(Reg reg, uint8_t value, uint32_t autostep = 3);
+    void writeRegister(uint8_t reg, uint8_t value, uint32_t autostep = 3);
 
 
 private:

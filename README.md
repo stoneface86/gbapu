@@ -26,8 +26,9 @@ gbapu::Apu apu(buffer);
 ```
 
 When your emulator accesses a sound register via memory mapped IO, just call
-`Apu::readRegister` or `Apu::writeRegister`. These methods have overloads for
-either the register number or the register's mapped memory address.
+`Apu::readRegister` or `Apu::writeRegister`. These methods take the register
+number to read/write, use the `Apu::Reg` enum or convert the memory address
+by AND'ing with 0xFF.
 
 Then run the APU for the necessary amount of cycles.
 
