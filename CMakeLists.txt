@@ -12,13 +12,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(BLIP_BUF_DIR "blip_buf-1.1.0")
 
-include_directories(
-    "include"
-    ${BLIP_BUF_DIR}
-)
-
-add_library(blip_buf STATIC "${BLIP_BUF_DIR}/blip_buf.c")
-
 set(GBAPU_SRC
     "src/Apu.cpp"
     "src/Buffer.cpp"
@@ -31,8 +24,15 @@ set(GBAPU_SRC
     "src/WaveChannel.cpp"
  )
 
-add_library(gbapu STATIC ${GBAPU_SRC})
-target_link_libraries(gbapu PRIVATE blip_buf)
+ set(BLIP_BUF_SRC
+    "${BLIP_BUF_DIR}/blip_buf.c"
+ )
+
+add_library(gbapu STATIC ${GBAPU_SRC} ${BLIP_BUF_SRC})
+target_include_directories(gbapu
+    PUBLIC "include"
+    PRIVATE "${BLIP_BUF_DIR}"
+)
 
 if (MSVC)
     target_compile_options(gbapu PRIVATE /wd26812)
