@@ -278,20 +278,20 @@ class Channel : public Base {
 
 public:
     void step(uint32_t timestamp, uint32_t cycles) noexcept {
-        if (mDacOn && stepTimer(cycles)) {
+        if (this->mDacOn && Base::stepTimer(cycles)) {
             Base::stepOscillator(timestamp + cycles);
         }
     }
 
     void writeFrequencyLsb(uint8_t value) {
-        mFrequency = (mFrequency & 0xFF00) | value;
+        this->mFrequency = (this->mFrequency & 0xFF00) | value;
         Base::setPeriod();
     }
 
     void writeFrequencyMsb(uint8_t value) {
-        mFrequency = (mFrequency & 0x00FF) | ((value & 0x7) << 8);
+        this->mFrequency = (this->mFrequency & 0x00FF) | ((value & 0x7) << 8);
         Base::setPeriod();
-        setLengthCounterEnable(!!(value & 0x40));
+        Base::setLengthCounterEnable(!!(value & 0x40));
 
         if (!!(value & 0x80)) {
             Base::restart();

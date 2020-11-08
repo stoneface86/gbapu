@@ -4,6 +4,7 @@
 #include "blip_buf.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace gbapu {
 
