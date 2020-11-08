@@ -360,12 +360,6 @@ class Buffer {
 
 public:
 
-    enum Quality {
-        QUALITY_LOW,    // low quality transitions on all channels
-        QUALITY_MED,    // high quality transitions on CH1+CH2, low quality on CH3+CH4
-        QUALITY_HIGH    // high quality transitions on all channels
-    };
-
     Buffer(unsigned samplerate, unsigned buffersize = 100);
     ~Buffer();
 
@@ -380,7 +374,7 @@ public:
 
     // settings
 
-    void setQuality(Quality quality);
+    void setQuality(bool highQuality);
 
     void setVolume(unsigned percent);
 
@@ -393,16 +387,14 @@ public:
 
 private:
 
-    void addDelta12(int term, int16_t delta, uint32_t clocktime);
-
-    void addDelta34(int term, int16_t delta, uint32_t clocktime);
+    void addDelta(int term, int16_t delta, uint32_t clocktime);
 
     void endFrame(uint32_t clocktime);
 
     struct Internal;
     std::unique_ptr<Internal> mInternal;
 
-    Quality mQuality;
+    bool mIsHighQuality;
     unsigned mVolumeStep;
     unsigned mSamplerate;
     unsigned mBuffersize;
@@ -472,7 +464,7 @@ public:
 private:
 
     template <int channel>
-    void getOutput(int8_t &leftdelta, int8_t &rightdelta);
+    void getOutput(uint16_t &leftamp, uint16_t &rightamp);
 
 
     Buffer &mBuffer;
@@ -490,7 +482,8 @@ private:
 
     uint8_t mOutputStat;
 
-    uint8_t mLastAmps[8];
+    uint16_t mLastAmpLeft;
+    uint16_t mLastAmpRight;
 
     bool mEnabled;
 

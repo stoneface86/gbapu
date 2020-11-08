@@ -10,10 +10,12 @@ Apu::Apu(Buffer &buffer, Model model) :
     mModel(model),
     mCf(),
     mSequencer(mCf),
+    mCycletime(0),
     mLeftVolume(1),
     mRightVolume(1),
     mOutputStat(0),
-    mLastAmps{ 0 },
+    mLastAmpLeft(0),
+    mLastAmpRight(0),
     mEnabled(false)
 {
 }
@@ -29,8 +31,8 @@ void Apu::reset() noexcept {
     mOutputStat = 0;
     mLeftVolume = 1;
     mRightVolume = 1;
-    std::fill_n(mLastAmps, 8, static_cast<uint8_t>(0));
-    
+    mLastAmpLeft = 0;
+    mLastAmpRight = 0;
     mEnabled = false;
 
 }
@@ -301,43 +303,47 @@ void Apu::writeRegister(Reg reg, uint8_t value, uint32_t autostep) {
 void Apu::step(uint32_t cycles) {
     while (cycles) {
 
-        // delta is the amount of change from the previous output
-        // 0 indicates no change, or no transition
-        int8_t leftdelta = 0;
-        int8_t rightdelta = 0;
+        uint16_t ampLeft = 0;
+        uint16_t ampRight = 0;
 
-        getOutput<0>(leftdelta, rightdelta);
-        getOutput<1>(leftdelta, rightdelta);
-        
-        // add deltas to the blip bufs if nonzero
-        if (leftdelta) {
-            mBuffer.addDelta12(0, leftdelta * mLeftVolume, mCycletime);
-            leftdelta = 0;
-        }
-        if (rightdelta) {
-            mBuffer.addDelta12(1, rightdelta * mRightVolume, mCycletime);
-            rightdelta = 0;
-        }
+        getOutput<0>(ampLeft, ampRight);
+        getOutput<1>(ampLeft, ampRight);
+        getOutput<2>(ampLeft, ampRight);
+        getOutput<3>(ampLeft, ampRight);
 
-        getOutput<2>(leftdelta, rightdelta);
-        getOutput<3>(leftdelta, rightdelta);
+        // volume scale
+        ampLeft *= mLeftVolume;
+        ampRight *= mRightVolume;
 
-        if (leftdelta) {
-            mBuffer.addDelta34(0, leftdelta * mLeftVolume, mCycletime);
-        }
-        if (rightdelta) {
-            mBuffer.addDelta34(1, rightdelta * mRightVolume, mCycletime);
+        // calculate deltas, a nonzero value indicates a transition
+        int16_t deltaLeft = static_cast<int16_t>(ampLeft) - static_cast<int16_t>(mLastAmpLeft);
+        int16_t deltaRight = static_cast<int16_t>(ampRight) - static_cast<int16_t>(mLastAmpRight);
+
+        if (deltaLeft) {
+            mBuffer.addDelta(0, deltaLeft, mCycletime);
+            mLastAmpLeft = ampLeft;
         }
 
-        // get the smallest timer and we will step to it
-        uint32_t cyclesToStep = std::min({
-            cycles,
-            mSequencer.timer(),
-            mCf.ch1.timer(),
-            mCf.ch2.timer(),
-            mCf.ch3.timer(),
-            mCf.ch4.timer()
-        });
+        if (deltaRight) {
+            mBuffer.addDelta(1, deltaRight, mCycletime);
+            mLastAmpRight = ampRight;
+        }
+
+        // figure out the largest step we can take without missing any
+        // changes in output.
+        uint32_t cyclesToStep = std::min(cycles, mSequencer.timer());
+        if (mCf.ch1.dacOn()) {
+            cyclesToStep = std::min(cyclesToStep, mCf.ch1.timer());
+        }
+        if (mCf.ch2.dacOn()) {
+            cyclesToStep = std::min(cyclesToStep, mCf.ch2.timer());
+        }
+        if (mCf.ch3.dacOn()) {
+            cyclesToStep = std::min(cyclesToStep, mCf.ch3.timer());
+        }
+        if (mCf.ch4.dacOn()) {
+            cyclesToStep = std::min(cyclesToStep, mCf.ch4.timer());
+        }
 
         // step hardware components
         mSequencer.step(cyclesToStep);
@@ -358,7 +364,7 @@ void Apu::endFrame() {
 }
 
 template <int ch>
-void Apu::getOutput(int8_t &leftdelta, int8_t &rightdelta) {
+void Apu::getOutput(uint16_t &leftamp, uint16_t &rightamp) {
 
     uint8_t output;
 
@@ -384,23 +390,12 @@ void Apu::getOutput(int8_t &leftdelta, int8_t &rightdelta) {
         }
     }
 
-    // get the previous volumes
-    uint8_t &prevL = mLastAmps[ch];
-    uint8_t &prevR = mLastAmps[ch + 4];
-    
-    // convert output stat (NR51) to a mask
-    uint8_t maskR = ~((mOutputStat >> ch) & 1) + 1;
-    uint8_t maskL = ~((mOutputStat >> (ch + 4)) & 1) + 1;
-
-    int8_t outputL = output & maskL;
-    int8_t outputR = output & maskR;
-    // calculate and accumulate deltas
-    leftdelta += outputL - static_cast<int8_t>(prevL);
-    rightdelta += outputR - static_cast<int8_t>(prevR);
-
-    // save the previous values for next time
-    prevL = outputL;
-    prevR = outputR;
+    if (!!((mOutputStat >> (ch + 4)) & 1)) {
+        leftamp += output;
+    }
+    if (!!((mOutputStat >> ch) & 1)) {
+        rightamp += output;
+    }
 
 }
 

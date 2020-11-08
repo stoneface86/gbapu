@@ -26,7 +26,7 @@ struct Buffer::Internal {
 
 Buffer::Buffer(unsigned samplerate, unsigned buffersize) :
     mInternal(new Internal()),
-    mQuality(QUALITY_HIGH),
+    mIsHighQuality(true),
     mSamplerate(samplerate),
     mBuffersize(buffersize),
     mResizeRequired(true)
@@ -53,8 +53,8 @@ void Buffer::clear() {
     blip_clear(mInternal->bbuf[1]);
 }
 
-void Buffer::setQuality(Quality quality) {
-    mQuality = quality;
+void Buffer::setQuality(bool quality) {
+    mIsHighQuality = quality;
 }
 
 void Buffer::setVolume(unsigned percent) {
@@ -94,16 +94,8 @@ void Buffer::resize() {
     }
 }
 
-void Buffer::addDelta12(int term, int16_t delta, uint32_t clocktime) {
-    if (mQuality == QUALITY_LOW) {
-        blip_add_delta_fast(mInternal->bbuf[term], clocktime, delta * mVolumeStep);
-    } else {
-        blip_add_delta(mInternal->bbuf[term], clocktime, delta * mVolumeStep);
-    }
-}
-
-void Buffer::addDelta34(int term, int16_t delta, uint32_t clocktime) {
-    if (mQuality == QUALITY_HIGH) {
+void Buffer::addDelta(int term, int16_t delta, uint32_t clocktime) {
+    if (mIsHighQuality) {
         blip_add_delta(mInternal->bbuf[term], clocktime, delta * mVolumeStep);
     } else {
         blip_add_delta_fast(mInternal->bbuf[term], clocktime, delta * mVolumeStep);

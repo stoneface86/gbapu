@@ -73,7 +73,6 @@ constexpr size_t DEMO_COUNT = sizeof(DEMO_TABLE) / sizeof(Demo);
 int main() {
 
     Buffer buffer(SAMPLERATE);
-    buffer.setQuality(Buffer::QUALITY_MED);
     Apu apu(buffer);
 
     constexpr size_t samplesPerFrame = (CYCLES_PER_FRAME / CYCLES_PER_SAMPLE) + 1;
