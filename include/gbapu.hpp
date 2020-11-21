@@ -464,7 +464,7 @@ public:
 private:
 
     template <int channel>
-    void getOutput(uint16_t &leftamp, uint16_t &rightamp);
+    void getOutput(int16_t &leftamp, int16_t &rightamp, uint32_t &timer);
 
 
     Buffer &mBuffer;
@@ -482,8 +482,8 @@ private:
 
     uint8_t mOutputStat;
 
-    uint16_t mLastAmpLeft;
-    uint16_t mLastAmpRight;
+    int16_t mLastAmpLeft;
+    int16_t mLastAmpRight;
 
     bool mEnabled;
 

@@ -135,6 +135,33 @@ static DemoCommand const DEMO_WAVE[] = {
 
 };
 
+static DemoCommand const DEMO_HEADROOM[] = {
+    {Apu::REG_NR52, 0x80}, {Apu::REG_NR51, 0xFF}, {Apu::REG_NR50, 0x77},
+    {Apu::REG_NR12, 0xF0}, {Apu::REG_NR14, 0x87}, {HOLD, 60},
+    {Apu::REG_NR21, 0x80}, { Apu::REG_NR22, 0xF0 }, {Apu::REG_NR24, 0x87}, {HOLD, 60},
+    {Apu::REG_WAVERAM,      0x01},
+    {Apu::REG_WAVERAM + 1,  0x23},
+    {Apu::REG_WAVERAM + 2,  0x45},
+    {Apu::REG_WAVERAM + 3,  0x67},
+    {Apu::REG_WAVERAM + 4,  0x89},
+    {Apu::REG_WAVERAM + 5,  0xAB},
+    {Apu::REG_WAVERAM + 6,  0xCD},
+    {Apu::REG_WAVERAM + 7,  0xEF},
+    {Apu::REG_WAVERAM + 8,  0xFE},
+    {Apu::REG_WAVERAM + 9,  0xDC},
+    {Apu::REG_WAVERAM + 10, 0xBA},
+    {Apu::REG_WAVERAM + 11, 0x98},
+    {Apu::REG_WAVERAM + 12, 0x76},
+    {Apu::REG_WAVERAM + 13, 0x54},
+    {Apu::REG_WAVERAM + 14, 0x32},
+    {Apu::REG_WAVERAM + 15, 0x10},
+    {Apu::REG_NR30, 0x80}, // DAC on
+    {Apu::REG_NR34, 0x84}, {HOLD, 60},
+    {Apu::REG_NR42, 0xF0}, {Apu::REG_NR43, 0x55}, { Apu::REG_NR44, 0x80 },
+    {HOLD, 60}
+
+};
+
 struct Demo {
     const char *name;
     DemoCommand const *sequence;
@@ -147,7 +174,8 @@ static Demo const DEMO_TABLE[] = {
     demoStruct("duty", DEMO_DUTY),
     demoStruct("master_volume", DEMO_MASTER_VOLUME),
     demoStruct("noise", DEMO_NOISE),
-    demoStruct("wave", DEMO_WAVE)
+    demoStruct("wave", DEMO_WAVE),
+    demoStruct("headroom", DEMO_HEADROOM)
 };
 
 constexpr size_t DEMO_COUNT = sizeof(DEMO_TABLE) / sizeof(Demo);
@@ -156,6 +184,7 @@ constexpr size_t DEMO_COUNT = sizeof(DEMO_TABLE) / sizeof(Demo);
 int main() {
 
     Buffer buffer(SAMPLERATE, SAMPLERATE / 10);
+    buffer.setVolume(90);
     Apu apu(buffer);
 
     constexpr size_t samplesPerFrame = (CYCLES_PER_FRAME / CYCLES_PER_SAMPLE) + 1;

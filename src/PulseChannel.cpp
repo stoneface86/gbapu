@@ -42,17 +42,14 @@ uint8_t PulseChannel::readDuty() const noexcept {
 
 void PulseChannel::reset() noexcept {
     EnvChannelBase::reset();
+    mDutyCounter = 0;
     mFrequency = 0;
     writeDuty(3);
     restart();
 }
 
-// restarting the pulse channel resets the duty counter
-// this may result in a click sound
 void PulseChannel::restart() noexcept {
     EnvChannelBase::restart();
-    mDutyCounter = 0;
-    setOutput();
 }
 
 void PulseChannel::writeDuty(uint8_t duty) noexcept {

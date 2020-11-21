@@ -295,21 +295,24 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
 void Apu::step(uint32_t cycles) {
     while (cycles) {
 
-        uint16_t ampLeft = 0;
-        uint16_t ampRight = 0;
+        int16_t ampLeft = 0;
+        int16_t ampRight = 0;
 
-        getOutput<0>(ampLeft, ampRight);
-        getOutput<1>(ampLeft, ampRight);
-        getOutput<2>(ampLeft, ampRight);
-        getOutput<3>(ampLeft, ampRight);
+        // figure out the largest step we can take without missing any
+        // changes in output.
+        uint32_t cyclesToStep = std::min(cycles, mSequencer.timer());
+        getOutput<0>(ampLeft, ampRight, cyclesToStep);
+        getOutput<1>(ampLeft, ampRight, cyclesToStep);
+        getOutput<2>(ampLeft, ampRight, cyclesToStep);
+        getOutput<3>(ampLeft, ampRight, cyclesToStep);
 
         // volume scale
         ampLeft *= mLeftVolume;
         ampRight *= mRightVolume;
 
         // calculate deltas, a nonzero value indicates a transition
-        int16_t deltaLeft = static_cast<int16_t>(ampLeft) - static_cast<int16_t>(mLastAmpLeft);
-        int16_t deltaRight = static_cast<int16_t>(ampRight) - static_cast<int16_t>(mLastAmpRight);
+        int16_t deltaLeft = ampLeft - mLastAmpLeft;
+        int16_t deltaRight = ampRight - mLastAmpRight;
 
         if (deltaLeft) {
             mBuffer.addDelta(0, deltaLeft, mCycletime);
@@ -319,22 +322,6 @@ void Apu::step(uint32_t cycles) {
         if (deltaRight) {
             mBuffer.addDelta(1, deltaRight, mCycletime);
             mLastAmpRight = ampRight;
-        }
-
-        // figure out the largest step we can take without missing any
-        // changes in output.
-        uint32_t cyclesToStep = std::min(cycles, mSequencer.timer());
-        if (mCf.ch1.dacOn()) {
-            cyclesToStep = std::min(cyclesToStep, mCf.ch1.timer());
-        }
-        if (mCf.ch2.dacOn()) {
-            cyclesToStep = std::min(cyclesToStep, mCf.ch2.timer());
-        }
-        if (mCf.ch3.dacOn()) {
-            cyclesToStep = std::min(cyclesToStep, mCf.ch3.timer());
-        }
-        if (mCf.ch4.dacOn()) {
-            cyclesToStep = std::min(cyclesToStep, mCf.ch4.timer());
         }
 
         // step hardware components
@@ -364,38 +351,44 @@ void Apu::endFrame() {
 }
 
 template <int ch>
-void Apu::getOutput(uint16_t &leftamp, uint16_t &rightamp) {
+void Apu::getOutput(int16_t &leftamp, int16_t &rightamp, uint32_t &timer) {
 
-    uint8_t output;
-
+    _internal::ChannelBase *baseChannel;
     if constexpr (ch == 0) {
-        output = mCf.ch1.output();
+        baseChannel = &mCf.ch1;
     } else if constexpr (ch == 1) {
-        output = mCf.ch2.output();
+        baseChannel = &mCf.ch2;
     } else if constexpr (ch == 2) {
-        output = mCf.ch3.output();
+        baseChannel = &mCf.ch3;
     } else {
-        output = mCf.ch4.output();
+        baseChannel = &mCf.ch4;
     }
 
-    if constexpr (ch != 2) {
-        if (output) {
-            if constexpr (ch == 0) {
-                output = mCf.ch1.volume();
-            } else if constexpr (ch == 1) {
-                output = mCf.ch2.volume();
-            } else {
-                output = mCf.ch4.volume();
+    if (baseChannel->dacOn()) {
+        int8_t output = baseChannel->output();
+
+        if constexpr (ch != 2) {
+            if (output) {
+                output = static_cast<_internal::EnvChannelBase*>(baseChannel)->volume();
             }
         }
+        // 0 1 2 3 4 5 6 7 8 9 A B C D E F
+    // 8 7 6 5 4 3 2 1 -1 -2 -3 -4 -5 -6 -7 -8
+        output = 2 * output - 15;
+
+        if (!!((mOutputStat >> (ch + 4)) & 1)) {
+            leftamp += output;
+        }
+        if (!!((mOutputStat >> ch) & 1)) {
+            rightamp += output;
+        }
+
+        timer = std::min(timer, baseChannel->timer());
     }
 
-    if (!!((mOutputStat >> (ch + 4)) & 1)) {
-        leftamp += output;
-    }
-    if (!!((mOutputStat >> ch) & 1)) {
-        rightamp += output;
-    }
+    
+
+    
 
 }
 
