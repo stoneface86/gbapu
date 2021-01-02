@@ -4,7 +4,6 @@
 #include "blip_buf.h"
 
 #include <algorithm>
-#include <cmath>
 
 namespace gbapu {
 
@@ -32,7 +31,7 @@ Buffer::Buffer(unsigned samplerate, size_t buffersizeInSamples) :
     mBuffersize(buffersizeInSamples),
     mResizeRequired(true)
 {
-    setVolume(100);
+    setVolume(1.0f);
     resize();
 }
 
@@ -43,7 +42,7 @@ size_t Buffer::available() {
 }
 
 size_t Buffer::read(int16_t *dest, size_t samples) {
-    size_t toRead = std::min(samples, available());
+    auto toRead = static_cast<int>(std::min(samples, available()));
     blip_read_samples(mInternal->bbuf[0], dest, toRead, 1);
     blip_read_samples(mInternal->bbuf[1], dest + 1, toRead, 1);
     return toRead;
@@ -58,11 +57,13 @@ void Buffer::setQuality(bool quality) {
     mIsHighQuality = quality;
 }
 
-void Buffer::setVolume(unsigned percent) {
-    double limit = INT16_MAX * pow(percent / 100.0, 2);
+void Buffer::setVolume(float gain) {
+
+    unsigned limitQ = static_cast<unsigned>(gain * (INT16_MAX << 16));
+
     // max amp on each channel is 15 so max amp is 60
     // 8 master volume levels so 60 * 8 = 480
-    mVolumeStep = static_cast<unsigned>(limit / 480.0);
+    mVolumeStep = limitQ / 480;
 }
 
 void Buffer::setSamplerate(unsigned samplerate) {
@@ -86,7 +87,7 @@ void Buffer::resize() {
         for (int i = 0; i != 2; ++i) {
             auto &bbuf = mInternal->bbuf[i];
             blip_delete(bbuf);
-            bbuf = blip_new(mBuffersize);
+            bbuf = blip_new(static_cast<int>(mBuffersize));
             blip_set_rates(bbuf, constants::CLOCK_SPEED<double>, mSamplerate);
         }
 
@@ -95,10 +96,14 @@ void Buffer::resize() {
 }
 
 void Buffer::addDelta(int term, int16_t delta, uint32_t clocktime) {
+    // multiply delta by volume step and round
+    // Q16.16 -> Q16.0
+    delta = static_cast<int16_t>((delta * mVolumeStep + 0x8000) >> 16);
+
     if (mIsHighQuality) {
-        blip_add_delta(mInternal->bbuf[term], clocktime, delta * mVolumeStep);
+        blip_add_delta(mInternal->bbuf[term], clocktime, delta);
     } else {
-        blip_add_delta_fast(mInternal->bbuf[term], clocktime, delta * mVolumeStep);
+        blip_add_delta_fast(mInternal->bbuf[term], clocktime, delta);
     }
 }
 
