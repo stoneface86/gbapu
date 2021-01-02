@@ -403,41 +403,39 @@ private:
 
 };
 
-struct Registers {
-    union {
-        struct {
-            // CH1
-            uint8_t nr10; // sweep
-            uint8_t nr11; // duty + length counter
-            uint8_t nr12; // envelope
-            uint8_t nr13; // frequency low
-            uint8_t nr14; // retrigger + length enable + frequency high
-            // CH2
-            uint8_t nr20; // unused, always 0
-            uint8_t nr21; // duty + length counter
-            uint8_t nr22; // envelope
-            uint8_t nr23; // frequency low
-            uint8_t nr24; // retrigger + length enable + frequency high
-            // CH3
-            uint8_t nr30; // DAC enable
-            uint8_t nr31; // length counter
-            uint8_t nr32; // wave volume
-            uint8_t nr33; // frequency low
-            uint8_t nr34; // retrigger + length enable + frequency high
-            // CH4
-            uint8_t nr40; // unused
-            uint8_t nr41; // length counter
-            uint8_t nr42; // envelope
-            uint8_t nr43; // noise settings
-            uint8_t nr44; // retrigger + length enable
-            // Control
-            uint8_t nr50; // Vin, terminal volumes
-            uint8_t nr51; // channel terminal enables
-            uint8_t nr52; // Sound enable, ON flags
-        };
+union Registers {
+    struct RegisterStruct {
+        // CH1
+        uint8_t nr10; // sweep
+        uint8_t nr11; // duty + length counter
+        uint8_t nr12; // envelope
+        uint8_t nr13; // frequency low
+        uint8_t nr14; // retrigger + length enable + frequency high
+        // CH2
+        uint8_t nr20; // unused, always 0
+        uint8_t nr21; // duty + length counter
+        uint8_t nr22; // envelope
+        uint8_t nr23; // frequency low
+        uint8_t nr24; // retrigger + length enable + frequency high
+        // CH3
+        uint8_t nr30; // DAC enable
+        uint8_t nr31; // length counter
+        uint8_t nr32; // wave volume
+        uint8_t nr33; // frequency low
+        uint8_t nr34; // retrigger + length enable + frequency high
+        // CH4
+        uint8_t nr40; // unused
+        uint8_t nr41; // length counter
+        uint8_t nr42; // envelope
+        uint8_t nr43; // noise settings
+        uint8_t nr44; // retrigger + length enable
+        // Control
+        uint8_t nr50; // Vin, terminal volumes
+        uint8_t nr51; // channel terminal enables
+        uint8_t nr52; // Sound enable, ON flags
+    } byName;
 
-        uint8_t regs[23];
-    };
+    std::array<uint8_t, 23> byArray;
 };
 
 class Apu {

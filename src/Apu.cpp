@@ -184,88 +184,88 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
     switch (reg) {
         case REG_NR10:
             mCf.ch1.writeSweep(value);
-            mRegs.nr10 = value & 0x7F;
+            mRegs.byName.nr10 = value & 0x7F;
             break;
         case REG_NR11:
             mCf.ch1.writeDuty(value >> 6);
             mCf.ch1.writeLengthCounter(value & 0x3F);
-            mRegs.nr11 = value;
+            mRegs.byName.nr11 = value;
             break;
         case REG_NR12:
             mCf.ch1.writeEnvelope(value);
-            mRegs.nr12 = value;
+            mRegs.byName.nr12 = value;
             break;
         case REG_NR13:
             mCf.ch1.writeFrequencyLsb(value);
-            mRegs.nr13 = value;
+            mRegs.byName.nr13 = value;
             break;
         case REG_NR14:
             mCf.ch1.writeFrequencyMsb(value);
-            mRegs.nr14 = value & 0xC7;
+            mRegs.byName.nr14 = value & 0xC7;
             break;
         case REG_NR21:
             mCf.ch2.writeDuty(value >> 6);
             mCf.ch2.writeLengthCounter(value & 0x3F);
-            mRegs.nr21 = value;
+            mRegs.byName.nr21 = value;
             break;
         case REG_NR22:
             mCf.ch2.writeEnvelope(value);
-            mRegs.nr22 = value;
+            mRegs.byName.nr22 = value;
             break;
         case REG_NR23:
             mCf.ch2.writeFrequencyLsb(value);
-            mRegs.nr23 = value;
+            mRegs.byName.nr23 = value;
             break;
         case REG_NR24:
             mCf.ch2.writeFrequencyMsb(value);
-            mRegs.nr24 = value & 0xC7;
+            mRegs.byName.nr24 = value & 0xC7;
             break;
         case REG_NR30:
             mCf.ch3.setDacEnable(!!(value & 0x80));
-            mRegs.nr30 = value & 0x80;
+            mRegs.byName.nr30 = value & 0x80;
             break;
         case REG_NR31:
             mCf.ch3.writeLengthCounter(value);
-            mRegs.nr31 = value;
+            mRegs.byName.nr31 = value;
             break;
         case REG_NR32:
             mCf.ch3.writeVolume(value);
-            mRegs.nr32 = value & 0x60;
+            mRegs.byName.nr32 = value & 0x60;
             break;
         case REG_NR33:
             mCf.ch3.writeFrequencyLsb(value);
-            mRegs.nr33 = value;
+            mRegs.byName.nr33 = value;
             break;
         case REG_NR34:
             mCf.ch3.writeFrequencyMsb(value);
-            mRegs.nr34 = value & 0xC7;
+            mRegs.byName.nr34 = value & 0xC7;
             break;
         case REG_NR41:
             mCf.ch4.writeLengthCounter(value & 0x3F);
-            mRegs.nr41 = value & 0x3F;
+            mRegs.byName.nr41 = value & 0x3F;
             break;
         case REG_NR42:
             mCf.ch4.writeEnvelope(value);
-            mRegs.nr42 = value;
+            mRegs.byName.nr42 = value;
             break;
         case REG_NR43:
             mCf.ch4.writeFrequencyLsb(value);
-            mRegs.nr43 = value;
+            mRegs.byName.nr43 = value;
             break;
         case REG_NR44:
             mCf.ch4.writeFrequencyMsb(value);
-            mRegs.nr44 = value & 0xC0;
+            mRegs.byName.nr44 = value & 0xC0;
             break;
         case REG_NR50:
             // do nothing with the Vin bits
             // Vin will not be emulated since no cartridge in history ever made use of it
             mLeftVolume = ((value >> 4) & 0x7) + 1;
             mRightVolume = (value & 0x7) + 1;
-            mRegs.nr50 = value & 0x77;
+            mRegs.byName.nr50 = value & 0x77;
             break;
         case REG_NR51:
             mOutputStat = value;
-            mRegs.nr51 = value;
+            mRegs.byName.nr51 = value;
             break;
         case REG_NR52:
             if (!!(value & 0x80) != mEnabled) {
@@ -277,7 +277,7 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
                         writeRegister(static_cast<Reg>(i), 0);
                     }
                     mEnabled = false;
-                    mRegs.nr52 &= ~0x80;
+                    mRegs.byName.nr52 &= ~0x80;
                 } else {
                     // startup
                     mEnabled = true;
@@ -285,7 +285,7 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
                     //mHf.gen2.softReset();
                     //mHf.gen3.softReset();
                     mSequencer.reset();
-                    mRegs.nr52 |= 0x80;
+                    mRegs.byName.nr52 |= 0x80;
                 }
                 
             }
