@@ -14,7 +14,6 @@ set(BLIP_BUF_DIR "blip_buf-1.1.0")
 
 set(GBAPU_SRC
     "src/Apu.cpp"
-    "src/Buffer.cpp"
     "src/Channel.cpp"
     "src/NoiseChannel.cpp"
     "src/PulseChannel.cpp"

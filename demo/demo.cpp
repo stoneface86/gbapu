@@ -162,6 +162,62 @@ static DemoCommand const DEMO_HEADROOM[] = {
 
 };
 
+static DemoCommand const DEMO_ENVELOPE[] = {
+    {Apu::REG_NR52, 0x80}, {Apu::REG_NR51, 0x11}, {Apu::REG_NR50, 0x77},
+    {Apu::REG_NR12, 0xF7}, {Apu::REG_NR14, 0x87}, {HOLD, 120},
+    {Apu::REG_NR12, 0xF6}, {Apu::REG_NR14, 0x87}, {HOLD, 90},
+    {Apu::REG_NR12, 0xF5}, {Apu::REG_NR14, 0x87}, {HOLD, 70},
+    {Apu::REG_NR12, 0xF4}, {Apu::REG_NR14, 0x87}, {HOLD, 60},
+    {Apu::REG_NR12, 0xF3}, {Apu::REG_NR14, 0x87}, {HOLD, 50},
+    {Apu::REG_NR12, 0xF2}, {Apu::REG_NR14, 0x87}, {HOLD, 40},
+    {Apu::REG_NR12, 0xF1}, {Apu::REG_NR14, 0x87}, {HOLD, 30},
+    {Apu::REG_NR14, 0x87}, {HOLD, 10},
+    {Apu::REG_NR14, 0x87}, {HOLD, 10},
+    {Apu::REG_NR14, 0x87}, {HOLD, 10},
+    {Apu::REG_NR14, 0x87}, {HOLD, 10}
+
+
+
+};
+
+static DemoCommand const DEMO_PANNING[] = {
+    {Apu::REG_NR52, 0x80}, {Apu::REG_NR51, 0x00}, {Apu::REG_NR50, 0x77},
+    {Apu::REG_NR11, 0x80}, {Apu::REG_NR12, 0xFF}, {Apu::REG_NR14, 0x87},
+    {Apu::REG_NR11, 0x80}, {Apu::REG_NR12, 0xFF}, {Apu::REG_NR14, 0x87},
+    {Apu::REG_NR21, 0x40}, {Apu::REG_NR22, 0xFF}, {Apu::REG_NR24, 0x87},
+    {Apu::REG_WAVERAM,      0x01},
+    {Apu::REG_WAVERAM + 1,  0x23},
+    {Apu::REG_WAVERAM + 2,  0x45},
+    {Apu::REG_WAVERAM + 3,  0x67},
+    {Apu::REG_WAVERAM + 4,  0x89},
+    {Apu::REG_WAVERAM + 5,  0xAB},
+    {Apu::REG_WAVERAM + 6,  0xCD},
+    {Apu::REG_WAVERAM + 7,  0xEF},
+    {Apu::REG_WAVERAM + 8,  0xFE},
+    {Apu::REG_WAVERAM + 9,  0xDC},
+    {Apu::REG_WAVERAM + 10, 0xBA},
+    {Apu::REG_WAVERAM + 11, 0x98},
+    {Apu::REG_WAVERAM + 12, 0x76},
+    {Apu::REG_WAVERAM + 13, 0x54},
+    {Apu::REG_WAVERAM + 14, 0x32},
+    {Apu::REG_WAVERAM + 15, 0x10},
+    {Apu::REG_NR30, 0x80}, {Apu::REG_NR34, 0x87},
+    {Apu::REG_NR42, 0xFF}, {Apu::REG_NR43, 0x44},  {Apu::REG_NR44, 0x80},
+    {HOLD, 2},
+    {Apu::REG_NR51, 0x10}, {HOLD, 4},
+    {Apu::REG_NR51, 0x01}, {HOLD, 4},
+    {Apu::REG_NR51, 0x11}, {HOLD, 4},
+    {Apu::REG_NR51, 0x20}, {HOLD, 4},
+    {Apu::REG_NR51, 0x02}, {HOLD, 4},
+    {Apu::REG_NR51, 0x22}, {HOLD, 4},
+    {Apu::REG_NR51, 0x40}, {HOLD, 4},
+    {Apu::REG_NR51, 0x04}, {HOLD, 4},
+    {Apu::REG_NR51, 0x44}, {HOLD, 4},
+    {Apu::REG_NR51, 0x80}, {HOLD, 4},
+    {Apu::REG_NR51, 0x08}, {HOLD, 4},
+    {Apu::REG_NR51, 0x88}, {HOLD, 4}
+};
+
 struct Demo {
     const char *name;
     DemoCommand const *sequence;
@@ -175,17 +231,19 @@ static Demo const DEMO_TABLE[] = {
     demoStruct("master_volume", DEMO_MASTER_VOLUME),
     demoStruct("noise", DEMO_NOISE),
     demoStruct("wave", DEMO_WAVE),
-    demoStruct("headroom", DEMO_HEADROOM)
+    demoStruct("headroom", DEMO_HEADROOM),
+    demoStruct("envelope", DEMO_ENVELOPE),
+    demoStruct("panning", DEMO_PANNING)
 };
 
 constexpr size_t DEMO_COUNT = sizeof(DEMO_TABLE) / sizeof(Demo);
 
 
+
 int main() {
 
-    Buffer buffer(SAMPLERATE, SAMPLERATE / 10);
-    buffer.setVolume(0.75f);
-    Apu apu(buffer);
+    Apu apu(SAMPLERATE, SAMPLERATE / 10);
+    apu.setVolume(0.6f);
 
     constexpr size_t samplesPerFrame = (CYCLES_PER_FRAME / CYCLES_PER_SAMPLE) + 1;
     std::unique_ptr<int16_t[]> frameBuf(new int16_t[samplesPerFrame * 2]);
@@ -200,7 +258,7 @@ int main() {
         wav.enable_stereo();
 
         apu.reset();
-        buffer.clear();
+        apu.clearSamples();
 
         uint32_t cycles = 0;
         for (size_t j = 0; j != demo.sequenceLen; ++j) {
@@ -209,8 +267,8 @@ int main() {
                 for (size_t frames = cmd.value; frames--; ) {
                     apu.step(CYCLES_PER_FRAME - cycles);
                     apu.endFrame();
-                    size_t samples = buffer.available();
-                    buffer.read(frameBuf.get(), samples);
+                    size_t samples = apu.availableSamples();
+                    apu.readSamples(frameBuf.get(), samples);
                     wav.write(frameBuf.get(), samples * 2);
 
                     cycles = 0;

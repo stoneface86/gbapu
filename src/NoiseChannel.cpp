@@ -2,22 +2,6 @@
 #include "gbapu.hpp"
 
 constexpr uint16_t LFSR_INIT = 0x7FFF;
-#define calcCounterMax(drf, scf) (DRF_TABLE[drf] << (scf+1))
-
-namespace {
-
-static const uint8_t DRF_TABLE[] = {
-    8,
-    16,
-    32,
-    48,
-    64,
-    80,
-    96,
-    112
-};
-
-}
 
 namespace gbapu::_internal {
 
@@ -69,11 +53,18 @@ void NoiseChannel::stepOscillator(uint32_t timestamp) noexcept {
 }
 
 void NoiseChannel::setPeriod() noexcept {
+    // drf = "dividing ratio frequency", divisor, etc
     uint8_t drf = mFrequency & 0x7;
+    if (drf == 0) {
+        drf = 8;
+    } else {
+        drf *= 16;
+    }
     mHalfWidth = !!((mFrequency >> 3) & 1);
-    uint8_t scf = mFrequency >> 4;
+    // scf = "shift clock frequency"
+    auto scf = mFrequency >> 4;
     mValidScf = scf < 0xD; // obscure behavior: if scf >= 0xD then the channel receives no clocks
-    mPeriod = calcCounterMax(drf, scf);
+    mPeriod = drf << scf;
 }
 
 

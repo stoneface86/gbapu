@@ -71,6 +71,13 @@ public:
 
     void stepLengthCounter() noexcept;
 
+    //
+    // Current volume of the channel. For channels with an envelope, this
+    // is the current envelope value. For the wave channel, this is the
+    // maximum volume possible based on the wave volume setting (NR32)
+    //
+    uint8_t volume() const noexcept;
+
 protected:
 
     ChannelBase(uint32_t defaultPeriod, unsigned lengthCounterMax) noexcept;
@@ -84,6 +91,7 @@ protected:
     uint16_t mFrequency; // 0-2047 (for noise channel only 8 bits are used)
 
     uint8_t mOutput;
+    uint8_t mVolume;
     bool mDacOn;
 
 private:
@@ -114,13 +122,9 @@ public:
 
     void reset() noexcept;
 
-    uint8_t volume() const noexcept;
 
 protected:
     EnvChannelBase(uint32_t defaultPeriod, unsigned lengthCounterMax) noexcept;
-
-    // current volume level of the envelope
-    uint8_t mEnvelopeVolume;
 
     // contents of the envelope register (NRx2)
     uint8_t mEnvelopeRegister;
@@ -353,56 +357,6 @@ private:
 
 } // gbapu::_internal
 
-
-class Buffer {
-
-    friend class Apu;
-
-public:
-
-    Buffer(unsigned samplerate, size_t buffersizeInSamples);
-    ~Buffer();
-
-    // access
-
-    size_t available();
-
-    size_t read(int16_t *dest, size_t samples);
-
-    void clear();
-
-
-    // settings
-
-    void setQuality(bool highQuality);
-
-    void setVolume(float gain);
-
-    void setSamplerate(unsigned samplerate);
-
-    void setBuffersize(size_t samples);
-
-    void resize();
-
-
-private:
-
-    void addDelta(int term, int16_t delta, uint32_t clocktime);
-
-    void endFrame(uint32_t clocktime);
-
-    struct Internal;
-    std::unique_ptr<Internal> mInternal;
-
-    bool mIsHighQuality;
-    // Q16.16
-    unsigned mVolumeStep;
-    unsigned mSamplerate;
-    size_t mBuffersize;
-    bool mResizeRequired;
-
-};
-
 union Registers {
     struct RegisterStruct {
         // CH1
@@ -480,8 +434,8 @@ public:
         REG_WAVERAM = 0x30
     };
 
-    Apu(Buffer &buffer, Model model = Model::dmg);
-    ~Apu() = default;
+    Apu(unsigned samplerate, size_t buffersizeInSamples, Model model = Model::dmg);
+    ~Apu();
 
     //
     // Gets the current register state. This is for diagnostic purposes only,
@@ -492,24 +446,54 @@ public:
     void reset() noexcept;
     void reset(Model model) noexcept;
 
+    //
+    // Step the emulator for a given number of cycles.
+    //
     void step(uint32_t cycles);
 
+    //
+    // Step to a given cycle time.
+    //
     void stepTo(uint32_t time);
 
+    //
+    // Ends the frame and allows for reading audio samples
+    //
     void endFrame();
 
     uint8_t readRegister(uint8_t reg, uint32_t autostep = 3);
 
     void writeRegister(uint8_t reg, uint8_t value, uint32_t autostep = 3);
 
+    // Output buffer
+
+    // access
+
+    size_t availableSamples();
+
+    size_t readSamples(int16_t *dest, size_t samples);
+
+    void clearSamples();
+
+
+    // settings
+
+    void setQuality(bool highQuality);
+
+    void setVolume(float gain);
+
+    void setSamplerate(unsigned samplerate);
+
+    void setBuffersize(size_t samples);
+
+    void resizeBuffer();
 
 private:
 
     template <int channel>
     void getOutput(int16_t &leftamp, int16_t &rightamp, uint32_t &timer);
 
-
-    Buffer &mBuffer;
+    void addDelta(int term, int16_t delta, uint32_t clocktime);
 
     Model mModel;
 
@@ -530,6 +514,17 @@ private:
     int16_t mLastAmpRight;
 
     bool mEnabled;
+
+    // buffer
+    struct Internal;
+    std::unique_ptr<Internal> mInternal;
+
+    bool mIsHighQuality;
+    // Q16.16
+    int32_t mVolumeStep;
+    unsigned mSamplerate;
+    size_t mBuffersize;
+    bool mResizeRequired;
 
 };
 

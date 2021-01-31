@@ -4,7 +4,11 @@ Gameboy APU emulator
 This is a static library for a gameboy APU emulator. This library was written
 for use in [trackerboy][trackerboy-url], a gameboy music tracker, but can also
 be used in other projects. The library produces high quality audio using
-blargg's [blip_buf][blip-buf-url] library. 
+blargg's [blip_buf][blip-buf-url] library.
+
+The goal of this emulator is to produce quality sound, that sounds "close enough"
+to real hardware. Most obscure behaviors and glitches that are present on the
+actual hardware will not be implemented in this library.
 
 ## Building
 
@@ -16,13 +20,11 @@ program creates a bunch of wav files demonstrating the use of the emulator.
 
 ## Usage
 
-Use the `Apu` class for modifying registers and the `Buffer` for getting
-audio samples.
+Use the `Apu` class for modifying registers and getting audio samples.
 
 ```cpp
-// samplerate = 48000 Hz
-gbapu::Buffer buffer(48000);
-gbapu::Apu apu(buffer);
+// samplerate = 48000 Hz, 100ms buffer
+gbapu::Apu apu(48000, 4800);
 ```
 
 When your emulator accesses a sound register via memory mapped IO, just call
@@ -40,9 +42,9 @@ apu.step(cycles);
 The Buffer must be read before it fills up, to read from the buffer
 ```cpp
 apu.endFrame(); // must call first before reading samples
-size_t samples = buffer.available();
+size_t samples = apu.availableSamples();
 // output is a buffer of interleaved int16_t audio samples
-buffer.read(output, samples);
+apu.readSamples(output, samples);
 ```
 
 ### Example
@@ -84,9 +86,11 @@ accessing the register. The default is 3 since the `ldh` instruction takes
  * Performance can be improved by lowering the quality setting of the buffer.
    Lower quality settings result in a linear interpolated step instead of a
    bandlimited one. Default quality setting is the highest.
- * The Buffer has a volume setting, default is 100% or 0.0 dB
+ * The Apu has a volume setting, default is 100% or 0.0 dB. Each channel gets
+   25% of this volume setting. Note that clipping may occur at 100% due to
+   overshoots and/or from high pass filtering.
  * The Buffer size and samplerate can be changed at any time, just call
-   `Buffer::resize()` after making the change. Also call `Apu::endFrame`
+   `Apu::resizeBuffer()` after making the change(s). Also call `Apu::endFrame`
    beforehand.
 
 ## References

@@ -1,12 +1,29 @@
 
 #include "gbapu.hpp"
 
+#include "blip_buf.h"
+
 #include <algorithm>
 
 namespace gbapu {
 
-Apu::Apu(Buffer &buffer, Model model) :
-    mBuffer(buffer),
+struct Apu::Internal {
+    // index 0 is the left terminal, 1 is the right
+    blip_buffer_t *bbuf[2];
+
+    Internal() :
+        bbuf{ nullptr }
+    {
+    }
+
+    ~Internal() {
+        blip_delete(bbuf[0]);
+        blip_delete(bbuf[1]);
+    }
+
+};
+
+Apu::Apu(unsigned samplerate, size_t buffersizeInSamples, Model model) :
     mModel(model),
     mCf(),
     mSequencer(mCf),
@@ -17,9 +34,18 @@ Apu::Apu(Buffer &buffer, Model model) :
     mOutputStat(0),
     mLastAmpLeft(0),
     mLastAmpRight(0),
-    mEnabled(false)
+    mEnabled(false),
+    mInternal(new Internal()),
+    mIsHighQuality(true),
+    mSamplerate(samplerate),
+    mBuffersize(buffersizeInSamples),
+    mResizeRequired(true)
 {
+    setVolume(1.0f);
+    resizeBuffer();
 }
+
+Apu::~Apu() = default;
 
 Registers const& Apu::registers() const {
     return mRegs;
@@ -129,7 +155,7 @@ uint8_t Apu::readRegister(uint8_t reg, uint32_t autostep) {
             return mOutputStat;
         case REG_NR52:
         {
-            uint8_t nr52 = mEnabled ? 0xF0 : 70;
+            uint8_t nr52 = mEnabled ? 0xF0 : 0x70;
             if (mCf.ch1.dacOn()) {
                 nr52 |= 0x1;
             }
@@ -323,6 +349,8 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
 void Apu::step(uint32_t cycles) {
     while (cycles) {
 
+        // amplitudes from every channel are summed together at this moment in time
+        // each channel ranges from -15 to 15 so the combined sum ranges from -60 to 60
         int16_t ampLeft = 0;
         int16_t ampRight = 0;
 
@@ -343,12 +371,12 @@ void Apu::step(uint32_t cycles) {
         int16_t deltaRight = ampRight - mLastAmpRight;
 
         if (deltaLeft) {
-            mBuffer.addDelta(0, deltaLeft, mCycletime);
+            addDelta(0, deltaLeft, mCycletime);
             mLastAmpLeft = ampLeft;
         }
 
         if (deltaRight) {
-            mBuffer.addDelta(1, deltaRight, mCycletime);
+            addDelta(1, deltaRight, mCycletime);
             mLastAmpRight = ampRight;
         }
 
@@ -374,7 +402,8 @@ void Apu::stepTo(uint32_t time) {
 }
 
 void Apu::endFrame() {
-    mBuffer.endFrame(mCycletime);
+    blip_end_frame(mInternal->bbuf[0], mCycletime);
+    blip_end_frame(mInternal->bbuf[1], mCycletime);
     mCycletime = 0;
 }
 
@@ -392,37 +421,120 @@ void Apu::getOutput(int16_t &leftamp, int16_t &rightamp, uint32_t &timer) {
         baseChannel = &mCf.ch4;
     }
 
+    constexpr auto PAN_LEFT = 0x10 << ch;
+    constexpr auto PAN_RIGHT = 0x01 << ch;
+    constexpr auto PAN_MIDDLE = PAN_LEFT | PAN_RIGHT;
+
+    // channel amplitude is 0 if
+    // * the DAC is off
+    // * the terminal is disabled for this channel
+
     if (baseChannel->dacOn()) {
-        int8_t output = baseChannel->output();
+        auto outputStat = mOutputStat & PAN_MIDDLE;
+        if (outputStat) {
+            int8_t output = baseChannel->output();
+            auto volume = baseChannel->volume();
 
-        if constexpr (ch == 2) {
-            //  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F | sample
-            // -F -D -B -9 -7 -5 -3 -1 +1 +3 +5 +7 +9 +B +D +F | amplitude
-            output = 2 * output - 15;
-        } else {
-            // oscillates between envelope and -envelope
-            
-            // 0, 1 => -1, 1
-            output = (output << 1) - 1;
-            output *= static_cast<_internal::EnvChannelBase*>(baseChannel)->volume();
-           
-        }
+            if constexpr (ch != 2) {
+                // NOTE: for envelope channels, output() is either 1 or 0
+                // output is the envelope volume when 1, 0 otherwise
+                output = -output & volume; // no branching needed >:)
+            }
 
-        if (!!((mOutputStat >> (ch + 4)) & 1)) {
-            leftamp += output;
-        }
-        if (!!((mOutputStat >> ch) & 1)) {
-            rightamp += output;
-        }
+            // DAC conversion (arbitrary units)
+            // Input:    0  ...   F
+            // Output: -1.0 ... +1.0
 
+            // INPUT  |  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
+            // OUTPUT | -F -D -B -9 -7 -5 -3 -1 +1 +3 +5 +7 +9 +B +D +F
+
+            //output = (output * 2) - 15;
+            // centers the waveform across the zero crossing
+            output = (output * 2) - volume;
+
+            if (!!(outputStat & PAN_LEFT)) {
+                leftamp += output;
+            }
+            if (!!(outputStat & PAN_RIGHT)) {
+                rightamp += output;
+            }
+        }
         timer = std::min(timer, baseChannel->timer());
     }
-
-    
-
-    
-
 }
+
+// Buffer stuff
+
+size_t Apu::availableSamples() {
+    return blip_samples_avail(mInternal->bbuf[0]);
+}
+
+size_t Apu::readSamples(int16_t *dest, size_t samples) {
+    auto toRead = static_cast<int>(std::min(samples, availableSamples()));
+    blip_read_samples(mInternal->bbuf[0], dest, toRead, 1);
+    blip_read_samples(mInternal->bbuf[1], dest + 1, toRead, 1);
+    return toRead;
+}
+
+void Apu::clearSamples() {
+    blip_clear(mInternal->bbuf[0]);
+    blip_clear(mInternal->bbuf[1]);
+}
+
+void Apu::setQuality(bool quality) {
+    mIsHighQuality = quality;
+}
+
+void Apu::setVolume(float gain) {
+
+    auto limitQ = (int32_t)(gain * (INT16_MAX << 16));
+
+    // max amp on each channel is 15 so max amp is 60
+    // 8 master volume levels so 60 * 8 = 480
+    mVolumeStep = limitQ / 480;
+}
+
+void Apu::setSamplerate(unsigned samplerate) {
+    if (mSamplerate != samplerate) {
+        mSamplerate = samplerate;
+        mResizeRequired = true;
+    }
+}
+
+void Apu::setBuffersize(size_t samples) {
+    if (mBuffersize != samples) {
+        mBuffersize = samples;
+        mResizeRequired = true;
+    }
+}
+
+void Apu::resizeBuffer() {
+
+    if (mResizeRequired) {
+
+        for (int i = 0; i != 2; ++i) {
+            auto &bbuf = mInternal->bbuf[i];
+            blip_delete(bbuf);
+            bbuf = blip_new(static_cast<int>(mBuffersize));
+            blip_set_rates(bbuf, constants::CLOCK_SPEED<double>, mSamplerate);
+        }
+
+        mResizeRequired = false;
+    }
+}
+
+void Apu::addDelta(int term, int16_t delta, uint32_t clocktime) {
+    // multiply delta by volume step and round
+    // Q16.16 -> Q16.0
+    delta = (int16_t)((delta * mVolumeStep + 0x8000) >> 16);
+
+    if (mIsHighQuality) {
+        blip_add_delta(mInternal->bbuf[term], clocktime, delta);
+    } else {
+        blip_add_delta_fast(mInternal->bbuf[term], clocktime, delta);
+    }
+}
+
 
 
 }

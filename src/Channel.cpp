@@ -10,6 +10,7 @@ ChannelBase::ChannelBase(uint32_t defaultPeriod, unsigned lengthCounterMax) noex
     Timer(defaultPeriod),
     mFrequency(0),
     mOutput(0),
+    mVolume(0),
     mDisableMask(DISABLED),
     mDacOn(false),
     mLengthCounter(0),
@@ -60,6 +61,10 @@ uint8_t ChannelBase::output() const noexcept {
     return mOutput & mDisableMask;
 }
 
+uint8_t ChannelBase::volume() const noexcept {
+    return mVolume;
+}
+
 void ChannelBase::reset() noexcept {
     mDacOn = false;
     mDisableMask = DISABLED;
@@ -68,6 +73,7 @@ void ChannelBase::reset() noexcept {
     mLengthEnabled = false;
     mPeriod = mDefaultPeriod;
     mTimer = mPeriod;
+    mVolume = 0;
 }
 
 void ChannelBase::restart() noexcept {
@@ -84,7 +90,6 @@ void ChannelBase::setLengthCounterEnable(bool enable) {
 
 EnvChannelBase::EnvChannelBase(uint32_t defaultPeriod, unsigned lengthCounterMax) noexcept :
     ChannelBase(defaultPeriod, lengthCounterMax),
-    mEnvelopeVolume(0),
     mEnvelopeRegister(0),
     mEnvelopeCounter(0),
     mEnvelopePeriod(0),
@@ -105,7 +110,7 @@ void EnvChannelBase::restart() noexcept {
     mEnvelopeCounter = 0;
     mEnvelopePeriod = mEnvelopeRegister & 0x7;
     mEnvelopeAmplify = !!(mEnvelopeRegister & 0x8);
-    mEnvelopeVolume = mEnvelopeRegister >> 4;
+    mVolume = mEnvelopeRegister >> 4;
     ChannelBase::restart();
 }
 
@@ -115,12 +120,12 @@ void EnvChannelBase::stepEnvelope() noexcept {
         if (++mEnvelopeCounter == mEnvelopePeriod) {
             mEnvelopeCounter = 0;
             if (mEnvelopeAmplify) {
-                if (mEnvelopeVolume < 0xF) {
-                    ++mEnvelopeVolume;
+                if (mVolume < 0xF) {
+                    ++mVolume;
                 }
             } else {
-                if (mEnvelopeVolume > 0x0) {
-                    --mEnvelopeVolume;
+                if (mVolume > 0x0) {
+                    --mVolume;
                 }
             }
         }
@@ -129,16 +134,14 @@ void EnvChannelBase::stepEnvelope() noexcept {
 
 void EnvChannelBase::reset() noexcept {
     ChannelBase::reset();
-    mEnvelopeVolume = 0;
+    
     mEnvelopeRegister = 0;
     mEnvelopeCounter = 0;
     mEnvelopePeriod = 0;
     mEnvelopeAmplify = false;
 }
 
-uint8_t EnvChannelBase::volume() const noexcept {
-    return mEnvelopeVolume;
-}
+
 
 
 }

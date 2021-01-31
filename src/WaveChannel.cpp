@@ -32,6 +32,7 @@ WaveChannel::WaveChannel() noexcept :
     mSampleBuffer(0),
     mWaveram{0}
 {
+    mVolume = 15;
 }
 
 uint8_t* WaveChannel::waveram() noexcept {
@@ -63,6 +64,7 @@ void WaveChannel::reset() noexcept {
     ChannelBase::reset();
     mLastRamAccess = 0;
     mVolumeShift = 0;
+    mVolume = 15;
     std::fill_n(mWaveram, constants::WAVE_RAMSIZE, static_cast<uint8_t>(0));
     mSampleBuffer = 0;
     restart();
@@ -87,7 +89,9 @@ void WaveChannel::writeVolume(uint8_t volume) noexcept {
     // shift = 1 : sample / 2  =  50%
     // shift = 2 : sample / 4  =  25%
     // shift = 4 : sample / 16 =   0%
-    mVolumeShift = nr32ToShift[(volume >> 5) & 3];
+    auto volumeIndex = (volume >> 5) & 3;
+    mVolumeShift = nr32ToShift[volumeIndex];
+    mVolume = 15 >> mVolumeShift;
     setOutput();
 }
 
