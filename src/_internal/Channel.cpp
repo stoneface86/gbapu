@@ -53,6 +53,38 @@ void ChannelBase::stepLengthCounter() noexcept {
     }
 }
 
+void ChannelBase::step(Mixer &mixer, uint32_t cycletime, uint32_t cycles) {
+    if (mDacOn) {
+        while (cycles) {
+            mixer.setOutput((int8_t)mOutput * 2 - (int8_t)mVolume, cycletime);
+            auto toStep = std::min(mTimer, cycles);
+            if (stepTimer(toStep)) {
+                stepOscillator();
+            }
+            cycles -= toStep;
+            cycletime += toStep;
+        }
+
+    } else {
+        mixer.setOutput(0, cycletime);
+    }
+}
+
+void ChannelBase::writeFrequencyLsb(uint8_t value) {
+    mFrequency = (mFrequency & 0xFF00) | value;
+    setPeriod();
+}
+
+void ChannelBase::writeFrequencyMsb(uint8_t value) {
+    mFrequency = (mFrequency & 0x00FF) | ((value & 0x7) << 8);
+    setPeriod();
+    setLengthCounterEnable(!!(value & 0x40));
+
+    if (!!(value & 0x80)) {
+        restart();
+    }
+}
+
 void ChannelBase::writeLengthCounter(uint8_t value) noexcept {
     mLengthCounter = value;
 }
@@ -140,6 +172,7 @@ void EnvChannelBase::reset() noexcept {
     mEnvelopePeriod = 0;
     mEnvelopeAmplify = false;
 }
+
 
 
 

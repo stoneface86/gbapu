@@ -30,8 +30,7 @@ void NoiseChannel::restart() noexcept {
     mOutput = 0;
 }
 
-void NoiseChannel::stepOscillator(uint32_t timestamp) noexcept {
-    (void)timestamp;
+void NoiseChannel::stepOscillator() noexcept {
 
     if (mValidScf) {
 
@@ -47,7 +46,7 @@ void NoiseChannel::stepOscillator(uint32_t timestamp) noexcept {
             mLfsr |= result << 6; // set bit 7 result
         }
 
-        mOutput = (~mLfsr) & 1;
+        mOutput = -((~mLfsr) & 1) & mVolume;
     }
     
 }

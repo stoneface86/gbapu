@@ -57,13 +57,12 @@ void PulseChannel::writeDuty(uint8_t duty) noexcept {
     mDutyWaveform = dutyWaveform(duty);
 }
 
-void PulseChannel::stepOscillator(uint32_t timestamp) noexcept {
-    (void)timestamp;
+void PulseChannel::stepOscillator() noexcept {
     // this implementation uses bit shifting instead of a lookup table
     
     // increment duty counter
     mDutyCounter = (mDutyCounter + 1) & 0x7;
-    setOutput();
+    mOutput = -((mDutyWaveform >> mDutyCounter) & 1) & mVolume;
     
 
 }

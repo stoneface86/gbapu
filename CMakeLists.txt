@@ -13,14 +13,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(BLIP_BUF_DIR "blip_buf-1.1.0")
 
 set(GBAPU_SRC
+    "src/_internal/BlipBuf.cpp"
+    "src/_internal/Channel.cpp"
+    "src/_internal/Mixer.cpp"
+    "src/_internal/NoiseChannel.cpp"
+    "src/_internal/PulseChannel.cpp"
+    "src/_internal/Sequencer.cpp"
+    "src/_internal/SweepPulseChannel.cpp"
+    "src/_internal/Timer.cpp"
+    "src/_internal/WaveChannel.cpp"
     "src/Apu.cpp"
-    "src/Channel.cpp"
-    "src/NoiseChannel.cpp"
-    "src/PulseChannel.cpp"
-    "src/Sequencer.cpp"
-    "src/SweepPulseChannel.cpp"
-    "src/Timer.cpp"
-    "src/WaveChannel.cpp"
  )
 
  set(BLIP_BUF_SRC

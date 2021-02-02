@@ -2,7 +2,9 @@
 #include "gbapu.hpp"
 #include "wave_writer.h"
 
+#include <chrono>
 #include <string>
+#include <iostream>
 
 constexpr unsigned SAMPLERATE = 48000;
 constexpr double CYCLES_PER_SAMPLE = 4194304.0 / SAMPLERATE;
@@ -238,15 +240,23 @@ static Demo const DEMO_TABLE[] = {
 
 constexpr size_t DEMO_COUNT = sizeof(DEMO_TABLE) / sizeof(Demo);
 
-
+using Clock = std::chrono::steady_clock;
 
 int main() {
 
-    Apu apu(SAMPLERATE, SAMPLERATE / 10);
+    Apu apu(SAMPLERATE, SAMPLERATE / 10);//, Apu::Quality::medium);
+    apu.setQuality(Apu::Quality::high);
     apu.setVolume(0.6f);
 
     constexpr size_t samplesPerFrame = (CYCLES_PER_FRAME / CYCLES_PER_SAMPLE) + 1;
     std::unique_ptr<int16_t[]> frameBuf(new int16_t[samplesPerFrame * 2]);
+
+    //auto timeStart = std::chrono::steady_clock::now();
+
+    Clock::duration minTime(Clock::duration::max()), maxTime(0);
+    Clock::duration avgTime(0);
+    Clock::duration elapsed(0);
+    size_t frameCounter = 0;
 
     for (size_t i = 0; i != DEMO_COUNT; ++i) {
         auto &demo = DEMO_TABLE[i];
@@ -265,7 +275,18 @@ int main() {
             auto cmd = demo.sequence[j];
             if (cmd.reg == HOLD) {
                 for (size_t frames = cmd.value; frames--; ) {
+                    auto now = Clock::now();
                     apu.step(CYCLES_PER_FRAME - cycles);
+                    auto frameTime = Clock::now() - now;
+                    if (frameTime < minTime) {
+                        minTime = frameTime;
+                    }
+                    if (frameTime > maxTime) {
+                        maxTime = frameTime;
+                    }
+                    ++frameCounter;
+                    elapsed += frameTime;
+                    
                     apu.endFrame();
                     size_t samples = apu.availableSamples();
                     apu.readSamples(frameBuf.get(), samples);
@@ -280,6 +301,20 @@ int main() {
             }
         }
     }
+
+    std::cout << "Time elapsed: "
+        << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count()
+        << " ms" << std::endl;
+    std::cout << "Minimum: "
+        << std::chrono::duration_cast<std::chrono::microseconds>(minTime).count()
+        << " us" << std::endl;
+    std::cout << "Maximum: "
+        << std::chrono::duration_cast<std::chrono::microseconds>(maxTime).count()
+        << " us" << std::endl;
+    std::cout << "Average: "
+        << std::chrono::duration_cast<std::chrono::microseconds>(elapsed / frameCounter).count()
+        << " us" << std::endl;
+
 
     return 0;
 }

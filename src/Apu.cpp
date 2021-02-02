@@ -1,48 +1,36 @@
 
 #include "gbapu.hpp"
 
-#include "blip_buf.h"
+#include "_internal/BlipBuf.hpp"
 
 #include <algorithm>
 
 namespace gbapu {
 
-struct Apu::Internal {
-    // index 0 is the left terminal, 1 is the right
-    blip_buffer_t *bbuf[2];
-
-    Internal() :
-        bbuf{ nullptr }
-    {
-    }
-
-    ~Internal() {
-        blip_delete(bbuf[0]);
-        blip_delete(bbuf[1]);
-    }
-
-};
-
-Apu::Apu(unsigned samplerate, size_t buffersizeInSamples, Model model) :
+Apu::Apu(unsigned samplerate, size_t buffersizeInSamples, Quality quality, Model model) :
     mModel(model),
+    mQuality(quality),
+    mBlip(new _internal::BlipBuf()),
+    mMixer1(*mBlip.get()),
+    mMixer2(*mBlip.get()),
+    mMixer3(*mBlip.get()),
+    mMixer4(*mBlip.get()),
     mCf(),
     mSequencer(mCf),
     mRegs{ 0 },
     mCycletime(0),
     mLeftVolume(1),
     mRightVolume(1),
-    mOutputStat(0),
-    mLastAmpLeft(0),
-    mLastAmpRight(0),
     mEnabled(false),
-    mInternal(new Internal()),
     mIsHighQuality(true),
     mSamplerate(samplerate),
     mBuffersize(buffersizeInSamples),
     mResizeRequired(true)
 {
-    setVolume(1.0f);
     resizeBuffer();
+    setVolume(1.0f);
+
+    updateQuality();
 }
 
 Apu::~Apu() = default;
@@ -54,18 +42,21 @@ Registers const& Apu::registers() const {
 void Apu::reset() noexcept {
     endFrame();
 
+    mMixer1.reset();
+    mMixer2.reset();
+    mMixer3.reset();
+    mMixer4.reset();
+
     mSequencer.reset();
     mCf.ch1.reset();
     mCf.ch2.reset();
     mCf.ch3.reset();
     mCf.ch4.reset();
-    mOutputStat = 0;
     mLeftVolume = 1;
     mRightVolume = 1;
-    mLastAmpLeft = 0;
-    mLastAmpRight = 0;
     mEnabled = false;
 
+    updateVolume();
 }
 
 void Apu::reset(Model model) noexcept {
@@ -152,7 +143,7 @@ uint8_t Apu::readRegister(uint8_t reg, uint32_t autostep) {
             // Not implemented: Vin, always read back as 0
             return ((mLeftVolume - 1) << 4) | (mRightVolume - 1);
         case REG_NR51:
-            return mOutputStat;
+            return mRegs.byName.nr51;
         case REG_NR52:
         {
             uint8_t nr52 = mEnabled ? 0xF0 : 0x70;
@@ -287,10 +278,15 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
             // Vin will not be emulated since no cartridge in history ever made use of it
             mLeftVolume = ((value >> 4) & 0x7) + 1;
             mRightVolume = (value & 0x7) + 1;
+            updateVolume();
             mRegs.byName.nr50 = value & 0x77;
             break;
         case REG_NR51:
-            mOutputStat = value;
+            mMixer1.setPanning(value & 0x11, mCycletime);
+            mMixer2.setPanning((value >> 1) & 0x11, mCycletime);
+            mMixer3.setPanning((value >> 2) & 0x11, mCycletime);
+            mMixer4.setPanning((value >> 3) & 0x11, mCycletime);
+
             mRegs.byName.nr51 = value;
             break;
         case REG_NR52:
@@ -349,43 +345,13 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
 void Apu::step(uint32_t cycles) {
     while (cycles) {
 
-        // amplitudes from every channel are summed together at this moment in time
-        // each channel ranges from -15 to 15 so the combined sum ranges from -60 to 60
-        int16_t ampLeft = 0;
-        int16_t ampRight = 0;
-
-        // figure out the largest step we can take without missing any
-        // changes in output.
+        // step hardware components to the beat of the sequencer's period
         uint32_t cyclesToStep = std::min(cycles, mSequencer.timer());
-        getOutput<0>(ampLeft, ampRight, cyclesToStep);
-        getOutput<1>(ampLeft, ampRight, cyclesToStep);
-        getOutput<2>(ampLeft, ampRight, cyclesToStep);
-        getOutput<3>(ampLeft, ampRight, cyclesToStep);
-
-        // volume scale
-        ampLeft *= mLeftVolume;
-        ampRight *= mRightVolume;
-
-        // calculate deltas, a nonzero value indicates a transition
-        int16_t deltaLeft = ampLeft - mLastAmpLeft;
-        int16_t deltaRight = ampRight - mLastAmpRight;
-
-        if (deltaLeft) {
-            addDelta(0, deltaLeft, mCycletime);
-            mLastAmpLeft = ampLeft;
-        }
-
-        if (deltaRight) {
-            addDelta(1, deltaRight, mCycletime);
-            mLastAmpRight = ampRight;
-        }
-
-        // step hardware components
         mSequencer.step(cyclesToStep);
-        mCf.ch1.step(mCycletime, cyclesToStep);
-        mCf.ch2.step(mCycletime, cyclesToStep);
-        mCf.ch3.step(mCycletime, cyclesToStep);
-        mCf.ch4.step(mCycletime, cyclesToStep);
+        mCf.ch1.step(mMixer1, mCycletime, cyclesToStep);
+        mCf.ch2.step(mMixer2, mCycletime, cyclesToStep);
+        mCf.ch3.step(mMixer3, mCycletime, cyclesToStep);
+        mCf.ch4.step(mMixer4, mCycletime, cyclesToStep);
 
         // update cycle counters
         cycles -= cyclesToStep;
@@ -402,87 +368,56 @@ void Apu::stepTo(uint32_t time) {
 }
 
 void Apu::endFrame() {
-    blip_end_frame(mInternal->bbuf[0], mCycletime);
-    blip_end_frame(mInternal->bbuf[1], mCycletime);
+    blip_end_frame(mBlip->bbuf[0], mCycletime);
+    blip_end_frame(mBlip->bbuf[1], mCycletime);
     mCycletime = 0;
 }
 
-template <int ch>
-void Apu::getOutput(int16_t &leftamp, int16_t &rightamp, uint32_t &timer) {
+void Apu::updateVolume() {
+    // apply global volume settings
+    auto leftVol = mLeftVolume * mVolumeStep;
+    auto rightVol = mRightVolume * mVolumeStep;
 
-    _internal::ChannelBase *baseChannel;
-    if constexpr (ch == 0) {
-        baseChannel = &mCf.ch1;
-    } else if constexpr (ch == 1) {
-        baseChannel = &mCf.ch2;
-    } else if constexpr (ch == 2) {
-        baseChannel = &mCf.ch3;
-    } else {
-        baseChannel = &mCf.ch4;
-    }
+    // flat EQ, each channel has the same volume step
+    // individual volume steps could be used for channel equalization (ie make CH4 quieter)
+    mMixer1.setVolume(leftVol, rightVol, mCycletime);
+    mMixer2.setVolume(leftVol, rightVol, mCycletime);
+    mMixer3.setVolume(leftVol, rightVol, mCycletime);
+    mMixer4.setVolume(leftVol, rightVol, mCycletime);
+}
 
-    constexpr auto PAN_LEFT = 0x10 << ch;
-    constexpr auto PAN_RIGHT = 0x01 << ch;
-    constexpr auto PAN_MIDDLE = PAN_LEFT | PAN_RIGHT;
-
-    // channel amplitude is 0 if
-    // * the DAC is off
-    // * the terminal is disabled for this channel
-
-    if (baseChannel->dacOn()) {
-        auto outputStat = mOutputStat & PAN_MIDDLE;
-        if (outputStat) {
-            int8_t output = baseChannel->output();
-            auto volume = baseChannel->volume();
-
-            if constexpr (ch != 2) {
-                // NOTE: for envelope channels, output() is either 1 or 0
-                // output is the envelope volume when 1, 0 otherwise
-                output = -output & volume; // no branching needed >:)
-            }
-
-            // DAC conversion (arbitrary units)
-            // Input:    0  ...   F
-            // Output: -1.0 ... +1.0
-
-            // INPUT  |  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
-            // OUTPUT | -F -D -B -9 -7 -5 -3 -1 +1 +3 +5 +7 +9 +B +D +F
-
-            //output = (output * 2) - 15;
-            // centers the waveform across the zero crossing
-            output = (output * 2) - volume;
-
-            if (!!(outputStat & PAN_LEFT)) {
-                leftamp += output;
-            }
-            if (!!(outputStat & PAN_RIGHT)) {
-                rightamp += output;
-            }
-        }
-        timer = std::min(timer, baseChannel->timer());
-    }
+void Apu::updateQuality() {
+    bool high12 = mQuality != Quality::low;
+    bool high34 = mQuality == Quality::high;
+    mMixer1.setQuality(high12);
+    mMixer2.setQuality(high12);
+    mMixer3.setQuality(high34);
+    mMixer4.setQuality(high34);
 }
 
 // Buffer stuff
 
 size_t Apu::availableSamples() {
-    return blip_samples_avail(mInternal->bbuf[0]);
+    return blip_samples_avail(mBlip->bbuf[0]);
 }
 
 size_t Apu::readSamples(int16_t *dest, size_t samples) {
     auto toRead = static_cast<int>(std::min(samples, availableSamples()));
-    blip_read_samples(mInternal->bbuf[0], dest, toRead, 1);
-    blip_read_samples(mInternal->bbuf[1], dest + 1, toRead, 1);
+    blip_read_samples(mBlip->bbuf[0], dest, toRead, 1);
+    blip_read_samples(mBlip->bbuf[1], dest + 1, toRead, 1);
     return toRead;
 }
 
 void Apu::clearSamples() {
-    blip_clear(mInternal->bbuf[0]);
-    blip_clear(mInternal->bbuf[1]);
+    blip_clear(mBlip->bbuf[0]);
+    blip_clear(mBlip->bbuf[1]);
 }
 
-void Apu::setQuality(bool quality) {
-    mIsHighQuality = quality;
+void Apu::setQuality(Quality quality) {
+    if (mQuality != quality) {
+        mQuality = quality;
+        updateQuality();
+    }
 }
 
 void Apu::setVolume(float gain) {
@@ -492,6 +427,8 @@ void Apu::setVolume(float gain) {
     // max amp on each channel is 15 so max amp is 60
     // 8 master volume levels so 60 * 8 = 480
     mVolumeStep = limitQ / 480;
+    updateVolume();
+
 }
 
 void Apu::setSamplerate(unsigned samplerate) {
@@ -513,7 +450,7 @@ void Apu::resizeBuffer() {
     if (mResizeRequired) {
 
         for (int i = 0; i != 2; ++i) {
-            auto &bbuf = mInternal->bbuf[i];
+            auto &bbuf = mBlip->bbuf[i];
             blip_delete(bbuf);
             bbuf = blip_new(static_cast<int>(mBuffersize));
             blip_set_rates(bbuf, constants::CLOCK_SPEED<double>, mSamplerate);
@@ -522,19 +459,6 @@ void Apu::resizeBuffer() {
         mResizeRequired = false;
     }
 }
-
-void Apu::addDelta(int term, int16_t delta, uint32_t clocktime) {
-    // multiply delta by volume step and round
-    // Q16.16 -> Q16.0
-    delta = (int16_t)((delta * mVolumeStep + 0x8000) >> 16);
-
-    if (mIsHighQuality) {
-        blip_add_delta(mInternal->bbuf[term], clocktime, delta);
-    } else {
-        blip_add_delta_fast(mInternal->bbuf[term], clocktime, delta);
-    }
-}
-
 
 
 }

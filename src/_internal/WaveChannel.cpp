@@ -95,9 +95,7 @@ void WaveChannel::writeVolume(uint8_t volume) noexcept {
     setOutput();
 }
 
-void WaveChannel::stepOscillator(uint32_t timestamp) noexcept {
-
-    mLastRamAccess = timestamp;
+void WaveChannel::stepOscillator() noexcept {
 
     mWaveIndex = (mWaveIndex + 1) & 0x1F;
     mSampleBuffer = mWaveram[mWaveIndex >> 1];

@@ -6,3 +6,6 @@ target_include_directories(wave_writer PUBLIC "${CMAKE_SOURCE_DIR}/${BLIP_BUF_DI
 
 add_executable(demo "demo.cpp")
 target_link_libraries(demo PRIVATE gbapu wave_writer)
+
+add_executable(benchmark "benchmark.cpp")
+target_link_libraries(benchmark PRIVATE gbapu)

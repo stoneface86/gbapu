@@ -24,6 +24,51 @@ constexpr T CLOCK_SPEED = T(4194304);
 
 namespace _internal {
 
+// container for blip_buf_t. Forward-declared so we can keep blip_buf out of the public API
+struct BlipBuf;
+
+
+class Mixer {
+
+
+public:
+    Mixer(BlipBuf &buf);
+
+    void reset();
+
+    void setQuality(bool highQuality);
+
+    void setOutput(int8_t sample, uint32_t cycletime);
+
+    void setPanning(int panning, uint32_t cycletime);
+
+    void setVolume(int32_t volumeLeft, int32_t volumeRight, uint32_t cycletime);
+
+private:
+
+
+    void addDelta(int term, uint32_t cycletime, int16_t delta);
+
+    static constexpr int PAN_LEFT = 0x10;
+    static constexpr int PAN_RIGHT = 0x01;
+
+    BlipBuf &mBlip;
+    // gain multipliers for each terminal in Q16.16 format
+    int32_t mVolumeStepLeft;
+    int32_t mVolumeStepRight;
+    // panning bitmap
+    int mPanning;
+    // true for high quality transitions
+    bool mHighQuality;
+
+    // the last sample set in setOutput, and is the current amplitude
+    int8_t mLastOutput;
+};
+
+
+//
+// Base class for all internal components in the APU.
+//
 class Timer {
 
 public:
@@ -59,16 +104,16 @@ public:
 
     bool lengthEnabled() const noexcept;
 
-    void setDacEnable(bool enabled) noexcept;
-
-    void writeLengthCounter(uint8_t value) noexcept;
-
     uint8_t output() const noexcept;
 
-    void reset() noexcept;
+    virtual void reset() noexcept;
 
-    void restart() noexcept;
+    virtual void restart() noexcept;
 
+    void setDacEnable(bool enabled) noexcept;
+    
+    void step(Mixer &mixer, uint32_t cycletime, uint32_t cycles);
+    
     void stepLengthCounter() noexcept;
 
     //
@@ -77,6 +122,12 @@ public:
     // maximum volume possible based on the wave volume setting (NR32)
     //
     uint8_t volume() const noexcept;
+
+    void writeFrequencyLsb(uint8_t value);
+
+    void writeFrequencyMsb(uint8_t value);
+    
+    void writeLengthCounter(uint8_t value) noexcept;
 
 protected:
 
@@ -87,6 +138,11 @@ protected:
     void setLengthCounterEnable(bool enable);
 
     uint16_t frequency() const noexcept;
+
+    virtual void setPeriod() = 0;
+
+
+    virtual void stepOscillator() noexcept = 0;
 
     uint16_t mFrequency; // 0-2047 (for noise channel only 8 bits are used)
 
@@ -118,9 +174,9 @@ public:
 
     void stepEnvelope() noexcept;
 
-    void restart() noexcept;
+    virtual void restart() noexcept;
 
-    void reset() noexcept;
+    virtual void reset() noexcept;
 
 
 protected:
@@ -149,15 +205,15 @@ public:
 
     uint8_t readDuty() const noexcept;
 
-    void reset() noexcept;
+    virtual void reset() noexcept;
 
-    void restart() noexcept;
+    virtual void restart() noexcept;
 
 protected:
 
-    void stepOscillator(uint32_t timestamp) noexcept;
+    void stepOscillator() noexcept override;
 
-    void setPeriod() noexcept;
+    void setPeriod() noexcept override;
 
 private:
 
@@ -229,9 +285,9 @@ public:
 
 protected:
 
-    void stepOscillator(uint32_t timestamp) noexcept;
+    void stepOscillator() noexcept override;
 
-    void setPeriod() noexcept;
+    void setPeriod() noexcept override;
 
 private:
 
@@ -261,9 +317,9 @@ public:
     void reset() noexcept;
 
 protected:
-    void stepOscillator(uint32_t timestamp) noexcept;
+    void stepOscillator() noexcept override;
 
-    void setPeriod() noexcept;
+    void setPeriod() noexcept override;
 
 private:
 
@@ -277,38 +333,12 @@ private:
 
 };
 
-template<class Base>
-class Channel : public Base {
-
-public:
-    void step(uint32_t timestamp, uint32_t cycles) noexcept {
-        if (this->mDacOn && Base::stepTimer(cycles)) {
-            Base::stepOscillator(timestamp + cycles);
-        }
-    }
-
-    void writeFrequencyLsb(uint8_t value) {
-        this->mFrequency = (this->mFrequency & 0xFF00) | value;
-        Base::setPeriod();
-    }
-
-    void writeFrequencyMsb(uint8_t value) {
-        this->mFrequency = (this->mFrequency & 0x00FF) | ((value & 0x7) << 8);
-        Base::setPeriod();
-        Base::setLengthCounterEnable(!!(value & 0x40));
-
-        if (!!(value & 0x80)) {
-            Base::restart();
-        }
-    }
-};
-
 struct ChannelFile {
 
-    Channel<SweepPulseChannel> ch1;
-    Channel<PulseChannel> ch2;
-    Channel<WaveChannel> ch3;
-    Channel<NoiseChannel> ch4;
+    SweepPulseChannel ch1;
+    PulseChannel ch2;
+    WaveChannel ch3;
+    NoiseChannel ch4;
 
     ChannelFile() noexcept :
         ch1(),
@@ -401,6 +431,12 @@ public:
         cgb
     };
 
+    enum class Quality {
+        low,            // low quality on all channels
+        medium,         // high quality on 1 + 2, low quality on 3 + 4
+        high            // high quality on all channels
+    };
+
     enum Reg {
         // CH1 - Square 1 --------------------------------------------------------
         REG_NR10 = 0x10, // -PPP NSSS | sweep period, negate, shift
@@ -434,7 +470,12 @@ public:
         REG_WAVERAM = 0x30
     };
 
-    Apu(unsigned samplerate, size_t buffersizeInSamples, Model model = Model::dmg);
+    Apu(
+        unsigned samplerate,
+        size_t buffersizeInSamples,
+        Quality quality = Quality::medium,
+        Model model = Model::dmg
+    );
     ~Apu();
 
     //
@@ -478,7 +519,7 @@ public:
 
     // settings
 
-    void setQuality(bool highQuality);
+    void setQuality(Quality quality);
 
     void setVolume(float gain);
 
@@ -490,12 +531,19 @@ public:
 
 private:
 
-    template <int channel>
-    void getOutput(int16_t &leftamp, int16_t &rightamp, uint32_t &timer);
-
-    void addDelta(int term, int16_t delta, uint32_t clocktime);
+    void updateVolume();
+    void updateQuality();
 
     Model mModel;
+    Quality mQuality;
+    
+    std::unique_ptr<_internal::BlipBuf> mBlip;
+
+    _internal::Mixer mMixer1;
+    _internal::Mixer mMixer2;
+    _internal::Mixer mMixer3;
+    _internal::Mixer mMixer4;
+
 
     _internal::ChannelFile mCf;
     _internal::Sequencer mSequencer;
@@ -508,16 +556,10 @@ private:
     uint8_t mLeftVolume;
     uint8_t mRightVolume;
 
-    uint8_t mOutputStat;
-
-    int16_t mLastAmpLeft;
-    int16_t mLastAmpRight;
-
     bool mEnabled;
 
     // buffer
-    struct Internal;
-    std::unique_ptr<Internal> mInternal;
+    //struct Internal;
 
     bool mIsHighQuality;
     // Q16.16
