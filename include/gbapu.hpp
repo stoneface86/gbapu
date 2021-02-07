@@ -27,42 +27,77 @@ namespace _internal {
 // container for blip_buf_t. Forward-declared so we can keep blip_buf out of the public API
 struct BlipBuf;
 
+// mix flags
+constexpr int MIX_LEFT = 2;
+constexpr int MIX_RIGHT = 1;
+constexpr int MIX_QUALITY = 4;
+
+enum class MixMode {
+    lowQualityMute      = 0,
+    lowQualityLeft      = MIX_LEFT,
+    lowQualityRight     = MIX_RIGHT,
+    lowQualityMiddle    = MIX_LEFT | MIX_RIGHT,
+    highQualityMute     = MIX_QUALITY,
+    highQualityLeft     = MIX_QUALITY | MIX_LEFT,
+    highQualityRight    = MIX_QUALITY | MIX_RIGHT,
+    highQualityMiddle   = MIX_QUALITY | MIX_LEFT | MIX_RIGHT
+};
+
+constexpr int operator+(MixMode mode) {
+    return static_cast<int>(mode);
+}
+
+constexpr bool modeIsHighQuality(MixMode mode) {
+    return !!(+mode & MIX_QUALITY);
+}
+
+constexpr bool modePansLeft(MixMode mode) {
+    return !!(+mode & MIX_LEFT);
+}
+
+constexpr bool modePansRight(MixMode mode) {
+    return !!(+mode & MIX_RIGHT);
+}
+
+constexpr MixMode modeSetQuality(MixMode mode, bool quality) {
+    if (quality) {
+        return static_cast<MixMode>(+mode | MIX_QUALITY);
+    } else {
+        return static_cast<MixMode>(+mode & ~MIX_QUALITY);
+    }
+}
+
+constexpr MixMode modeSetPanning(MixMode mode, int panning) {
+    return static_cast<MixMode>(
+        (+mode & ~(MIX_LEFT | MIX_RIGHT)) | (panning & 1) | (panning >> 3)
+        );
+}
 
 class Mixer {
 
-
 public:
-    Mixer(BlipBuf &buf);
+    Mixer(BlipBuf &blip);
 
-    void reset();
+    void addDelta(MixMode mode, int term, uint32_t cycletime, int16_t delta);
 
-    void setQuality(bool highQuality);
+    void mix(MixMode mode, int8_t sample, uint32_t cycletime);
 
-    void setOutput(int8_t sample, uint32_t cycletime);
+    template <MixMode mode>
+    void mixfast(int8_t sample, uint32_t cycletime);
 
-    void setPanning(int panning, uint32_t cycletime);
+    void setVolume(int32_t leftVolume, int32_t rightVolume);
 
-    void setVolume(int32_t volumeLeft, int32_t volumeRight, uint32_t cycletime);
+    int32_t leftVolume() const noexcept;
+
+    int32_t rightVolume() const noexcept;
 
 private:
 
-
-    void addDelta(int term, uint32_t cycletime, int16_t delta);
-
-    static constexpr int PAN_LEFT = 0x10;
-    static constexpr int PAN_RIGHT = 0x01;
-
     BlipBuf &mBlip;
-    // gain multipliers for each terminal in Q16.16 format
     int32_t mVolumeStepLeft;
     int32_t mVolumeStepRight;
-    // panning bitmap
-    int mPanning;
-    // true for high quality transitions
-    bool mHighQuality;
 
-    // the last sample set in setOutput, and is the current amplitude
-    int8_t mLastOutput;
+
 };
 
 
@@ -102,6 +137,8 @@ public:
 
     bool dacOn() const noexcept;
 
+    int8_t dacOutput() const noexcept;
+
     bool lengthEnabled() const noexcept;
 
     uint8_t output() const noexcept;
@@ -112,7 +149,7 @@ public:
 
     void setDacEnable(bool enabled) noexcept;
     
-    void step(Mixer &mixer, uint32_t cycletime, uint32_t cycles);
+    void step(Mixer &mixer, MixMode mode, uint32_t cycletime, uint32_t cycles);
     
     void stepLengthCounter() noexcept;
 
@@ -154,7 +191,11 @@ private:
     static constexpr uint8_t ENABLED = 0xFF;
     static constexpr uint8_t DISABLED = 0x00;
 
+    template <MixMode mode>
+    void stepImpl(Mixer &mixer, uint32_t cycletime, uint32_t cycles);
+
     uint8_t mDisableMask;
+    int8_t mLastDacOutput;
     
 
     unsigned mLengthCounter;
@@ -539,10 +580,12 @@ private:
     
     std::unique_ptr<_internal::BlipBuf> mBlip;
 
-    _internal::Mixer mMixer1;
+    /*_internal::Mixer mMixer1;
     _internal::Mixer mMixer2;
     _internal::Mixer mMixer3;
-    _internal::Mixer mMixer4;
+    _internal::Mixer mMixer4;*/
+    _internal::Mixer mMixer;
+    std::array<_internal::MixMode, 4> mPannings;
 
 
     _internal::ChannelFile mCf;

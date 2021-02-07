@@ -11,10 +11,8 @@ Apu::Apu(unsigned samplerate, size_t buffersizeInSamples, Quality quality, Model
     mModel(model),
     mQuality(quality),
     mBlip(new _internal::BlipBuf()),
-    mMixer1(*mBlip.get()),
-    mMixer2(*mBlip.get()),
-    mMixer3(*mBlip.get()),
-    mMixer4(*mBlip.get()),
+    mMixer(*mBlip.get()),
+    mPannings{ _internal::MixMode::lowQualityMute },
     mCf(),
     mSequencer(mCf),
     mRegs{ 0 },
@@ -41,11 +39,6 @@ Registers const& Apu::registers() const {
 
 void Apu::reset() noexcept {
     endFrame();
-
-    mMixer1.reset();
-    mMixer2.reset();
-    mMixer3.reset();
-    mMixer4.reset();
 
     mSequencer.reset();
     mCf.ch1.reset();
@@ -278,16 +271,44 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
             // Vin will not be emulated since no cartridge in history ever made use of it
             mLeftVolume = ((value >> 4) & 0x7) + 1;
             mRightVolume = (value & 0x7) + 1;
+
+            
+
             updateVolume();
             mRegs.byName.nr50 = value & 0x77;
             break;
         case REG_NR51:
-            mMixer1.setPanning(value & 0x11, mCycletime);
-            mMixer2.setPanning((value >> 1) & 0x11, mCycletime);
-            mMixer3.setPanning((value >> 2) & 0x11, mCycletime);
-            mMixer4.setPanning((value >> 3) & 0x11, mCycletime);
+        {
+            auto changes = mRegs.byName.nr51 ^ value;
+            auto panning = value;
+            std::array<_internal::ChannelBase*, 4> channels = { &mCf.ch1, &mCf.ch2, &mCf.ch3, &mCf.ch4 };
+            for (size_t i = 0; i != mPannings.size(); ++i) {
+                auto currentMode = mPannings[i];
+                //if (channels[i]->dacOn()) {
+                    auto dacOutput = channels[i]->dacOutput();
+                    if (!!(changes & 0x10)) {
+                        // the left terminal output status changed, determine amplitude
+                        auto ampl = (int16_t)((dacOutput * mMixer.leftVolume() + 0x8000) >> 16);
+                        // if the new value is ON, go to this amplitude, otherwise drop down to 0
+                        mMixer.addDelta(currentMode, 0, mCycletime, !!(panning & 0x10) ? ampl : -ampl);
+
+                    }
+
+                    if (!!(changes & 0x01)) {
+                        // same as above but for the right terminal
+                        auto ampl = (int16_t)((dacOutput * mMixer.rightVolume() + 0x8000) >> 16);
+                        mMixer.addDelta(currentMode, 1, mCycletime, !!(panning & 0x01) ? ampl : -ampl);
+
+                    }
+                //}
+
+                mPannings[i] = _internal::modeSetPanning(currentMode, panning & 0x11);
+                panning >>= 1;
+                changes >>= 1;
+            }
 
             mRegs.byName.nr51 = value;
+        }
             break;
         case REG_NR52:
             if (!!(value & 0x80) != mEnabled) {
@@ -348,10 +369,10 @@ void Apu::step(uint32_t cycles) {
         // step hardware components to the beat of the sequencer's period
         uint32_t cyclesToStep = std::min(cycles, mSequencer.timer());
         mSequencer.step(cyclesToStep);
-        mCf.ch1.step(mMixer1, mCycletime, cyclesToStep);
-        mCf.ch2.step(mMixer2, mCycletime, cyclesToStep);
-        mCf.ch3.step(mMixer3, mCycletime, cyclesToStep);
-        mCf.ch4.step(mMixer4, mCycletime, cyclesToStep);
+        mCf.ch1.step(mMixer, mPannings[0], mCycletime, cyclesToStep);
+        mCf.ch2.step(mMixer, mPannings[1], mCycletime, cyclesToStep);
+        mCf.ch3.step(mMixer, mPannings[2], mCycletime, cyclesToStep);
+        mCf.ch4.step(mMixer, mPannings[3], mCycletime, cyclesToStep);
 
         // update cycle counters
         cycles -= cyclesToStep;
@@ -377,22 +398,27 @@ void Apu::updateVolume() {
     // apply global volume settings
     auto leftVol = mLeftVolume * mVolumeStep;
     auto rightVol = mRightVolume * mVolumeStep;
+    mMixer.setVolume(leftVol, rightVol);
 
     // flat EQ, each channel has the same volume step
     // individual volume steps could be used for channel equalization (ie make CH4 quieter)
-    mMixer1.setVolume(leftVol, rightVol, mCycletime);
+    /*mMixer1.setVolume(leftVol, rightVol, mCycletime);
     mMixer2.setVolume(leftVol, rightVol, mCycletime);
     mMixer3.setVolume(leftVol, rightVol, mCycletime);
-    mMixer4.setVolume(leftVol, rightVol, mCycletime);
+    mMixer4.setVolume(leftVol, rightVol, mCycletime);*/
 }
 
 void Apu::updateQuality() {
     bool high12 = mQuality != Quality::low;
     bool high34 = mQuality == Quality::high;
-    mMixer1.setQuality(high12);
+    mPannings[0] = _internal::modeSetQuality(mPannings[0], high12);
+    mPannings[1] = _internal::modeSetQuality(mPannings[1], high12);
+    mPannings[2] = _internal::modeSetQuality(mPannings[2], high34);
+    mPannings[3] = _internal::modeSetQuality(mPannings[3], high34);
+    /*mMixer1.setQuality(high12);
     mMixer2.setQuality(high12);
     mMixer3.setQuality(high34);
-    mMixer4.setQuality(high34);
+    mMixer4.setQuality(high34);*/
 }
 
 // Buffer stuff

@@ -12,6 +12,7 @@ ChannelBase::ChannelBase(uint32_t defaultPeriod, unsigned lengthCounterMax) noex
     mOutput(0),
     mVolume(0),
     mDisableMask(DISABLED),
+    mLastDacOutput(0),
     mDacOn(false),
     mLengthCounter(0),
     mLengthEnabled(false),
@@ -22,6 +23,10 @@ ChannelBase::ChannelBase(uint32_t defaultPeriod, unsigned lengthCounterMax) noex
 
 bool ChannelBase::dacOn() const noexcept {
     return mDacOn;
+}
+
+int8_t ChannelBase::dacOutput() const noexcept {
+    return mLastDacOutput;
 }
 
 bool ChannelBase::lengthEnabled() const noexcept {
@@ -53,10 +58,61 @@ void ChannelBase::stepLengthCounter() noexcept {
     }
 }
 
-void ChannelBase::step(Mixer &mixer, uint32_t cycletime, uint32_t cycles) {
+void ChannelBase::step(Mixer &mixer, MixMode mode, uint32_t cycletime, uint32_t cycles) {
+    switch (mode) {
+        case MixMode::lowQualityMute:
+        case MixMode::highQualityMute:
+            stepImpl<MixMode::lowQualityMute>(mixer, cycletime, cycles);
+            break;
+        case MixMode::lowQualityLeft:
+            stepImpl<MixMode::lowQualityLeft>(mixer, cycletime, cycles);
+            break;
+        case MixMode::lowQualityRight:
+            stepImpl<MixMode::lowQualityRight>(mixer, cycletime, cycles);
+            break;
+        case MixMode::lowQualityMiddle:
+            stepImpl<MixMode::lowQualityMiddle>(mixer, cycletime, cycles);
+            break;
+        case MixMode::highQualityLeft:
+            stepImpl<MixMode::highQualityLeft>(mixer, cycletime, cycles);
+            break;
+        case MixMode::highQualityRight:
+            stepImpl<MixMode::highQualityRight>(mixer, cycletime, cycles);
+            break;
+        case MixMode::highQualityMiddle:
+            stepImpl<MixMode::highQualityMiddle>(mixer, cycletime, cycles);
+            break;
+        default:
+            break;
+    }
+
+    //if (mDacOn) {
+    //    while (cycles) {
+    //        mixer.setOutput((int8_t)mOutput * 2 - (int8_t)mVolume, cycletime);
+    //        auto toStep = std::min(mTimer, cycles);
+    //        if (stepTimer(toStep)) {
+    //            stepOscillator();
+    //        }
+    //        cycles -= toStep;
+    //        cycletime += toStep;
+    //    }
+
+    //} else {
+    //    mixer.setOutput(0, cycletime);
+    //}
+}
+
+template <MixMode mode>
+void ChannelBase::stepImpl(Mixer &mixer, uint32_t cycletime, uint32_t cycles) {
     if (mDacOn) {
         while (cycles) {
-            mixer.setOutput((int8_t)mOutput * 2 - (int8_t)mVolume, cycletime);
+            int8_t sample = (int8_t)mOutput * 2 - (int8_t)mVolume;
+            if (mLastDacOutput != sample) {
+                if constexpr (mode != MixMode::lowQualityMute) {
+                    mixer.mixfast<mode>(sample - mLastDacOutput, cycletime);
+                }
+                mLastDacOutput = sample;
+            }
             auto toStep = std::min(mTimer, cycles);
             if (stepTimer(toStep)) {
                 stepOscillator();
@@ -64,10 +120,12 @@ void ChannelBase::step(Mixer &mixer, uint32_t cycletime, uint32_t cycles) {
             cycles -= toStep;
             cycletime += toStep;
         }
-
-    } else {
-        mixer.setOutput(0, cycletime);
-    }
+    } /*else {
+        if (mLastOutput) {
+            mixer.mixfast<mode>((int8_t)mVolume - (int8_t)(mOutput * 2), cycletime);
+            mLastOutput = 0;
+        }
+    }*/
 }
 
 void ChannelBase::writeFrequencyLsb(uint8_t value) {
@@ -106,6 +164,7 @@ void ChannelBase::reset() noexcept {
     mPeriod = mDefaultPeriod;
     mTimer = mPeriod;
     mVolume = 0;
+    mLastDacOutput = 0;
 }
 
 void ChannelBase::restart() noexcept {
