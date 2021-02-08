@@ -18,6 +18,9 @@ static constexpr uint32_t DUTY_MASK = 0x7EE18180;
 
 static constexpr uint32_t DEFAULT_PERIOD = (2048 - 0) * PULSE_MULTIPLIER;
 
+// frequency 2042 is about 21845 Hz
+constexpr uint32_t MIN_PERIOD = (2048 - 2042) * PULSE_MULTIPLIER;
+
 //#define setOutput() mOutput = ((DUTY_MASK >> ((mDuty << 3) + mDutyCounter)) & 1)
 #define setOutput() mOutput = (mDutyWaveform >> mDutyCounter) & 1
 #define dutyWaveform(duty) ((DUTY_MASK >> (duty << 3)) & 0xFF)
@@ -29,7 +32,7 @@ namespace gbapu::_internal {
 
 
 PulseChannel::PulseChannel() noexcept :
-    EnvChannelBase(DEFAULT_PERIOD, 64),
+    EnvChannelBase(DEFAULT_PERIOD, MIN_PERIOD, 64),
     mDuty(3),
     mDutyWaveform(dutyWaveform(3)),
     mDutyCounter(0)

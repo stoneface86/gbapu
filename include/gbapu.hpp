@@ -166,7 +166,7 @@ public:
 
 protected:
 
-    ChannelBase(uint32_t defaultPeriod, unsigned lengthCounterMax) noexcept;
+    ChannelBase(uint32_t defaultPeriod, uint32_t minPeriod, unsigned lengthCounterMax) noexcept;
 
     void disable() noexcept;
 
@@ -203,7 +203,7 @@ private:
     unsigned const mLengthCounterMax;
     uint32_t const mDefaultPeriod;
     // minimum period that mixing will occur
-    uint32_t const mMinPeriod = 0;
+    uint32_t const mMinPeriod;
 
 };
 
@@ -222,7 +222,7 @@ public:
 
 
 protected:
-    EnvChannelBase(uint32_t defaultPeriod, unsigned lengthCounterMax) noexcept;
+    EnvChannelBase(uint32_t defaultPeriod, uint32_t minPeriod, unsigned lengthCounterMax) noexcept;
 
     // contents of the envelope register (NRx2)
     uint8_t mEnvelopeRegister;
