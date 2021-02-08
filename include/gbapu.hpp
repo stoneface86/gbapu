@@ -91,11 +91,18 @@ public:
 
     int32_t rightVolume() const noexcept;
 
+    int32_t dcLeft() const noexcept;
+
+    int32_t dcRight() const noexcept;
+
 private:
 
     BlipBuf &mBlip;
     int32_t mVolumeStepLeft;
     int32_t mVolumeStepRight;
+
+    int32_t mDcLeft;
+    int32_t mDcRight;
 
 
 };
@@ -137,11 +144,9 @@ public:
 
     bool dacOn() const noexcept;
 
-    int8_t dacOutput() const noexcept;
+    int8_t lastOutput() const noexcept;
 
     bool lengthEnabled() const noexcept;
-
-    uint8_t output() const noexcept;
 
     virtual void reset() noexcept;
 
@@ -152,13 +157,6 @@ public:
     void step(Mixer &mixer, MixMode mode, uint32_t cycletime, uint32_t cycles);
     
     void stepLengthCounter() noexcept;
-
-    //
-    // Current volume of the channel. For channels with an envelope, this
-    // is the current envelope value. For the wave channel, this is the
-    // maximum volume possible based on the wave volume setting (NR32)
-    //
-    uint8_t volume() const noexcept;
 
     void writeFrequencyLsb(uint8_t value);
 
@@ -183,26 +181,29 @@ protected:
 
     uint16_t mFrequency; // 0-2047 (for noise channel only 8 bits are used)
 
-    uint8_t mOutput;
-    uint8_t mVolume;
+    // PCM value going into the DAC (0 to F)
+    int8_t mOutput;
+
+    
     bool mDacOn;
 
 private:
-    static constexpr uint8_t ENABLED = 0xFF;
-    static constexpr uint8_t DISABLED = 0x00;
 
     template <MixMode mode>
     void stepImpl(Mixer &mixer, uint32_t cycletime, uint32_t cycles);
 
-    uint8_t mDisableMask;
-    int8_t mLastDacOutput;
+    // previous PCM value
+    int8_t mLastOutput;
     
 
     unsigned mLengthCounter;
     bool mLengthEnabled;
+    bool mDisabled;
 
     unsigned const mLengthCounterMax;
     uint32_t const mDefaultPeriod;
+    // minimum period that mixing will occur
+    uint32_t const mMinPeriod = 0;
 
 };
 
@@ -229,6 +230,7 @@ protected:
     uint8_t mEnvelopeCounter;
     uint8_t mEnvelopePeriod;
     bool mEnvelopeAmplify;
+    int8_t mVolume;
 };
 
 

@@ -24,7 +24,7 @@ struct DemoCommand {
 
 static DemoCommand const DEMO_DUTY[] = {
     // frame 0, setup control regs and retrigger CH1 with duty = 0 (12.5%)
-    {Apu::REG_NR52, 0x80}, {Apu::REG_NR51, 0x11}, {Apu::REG_NR50, 0x77},
+    {Apu::REG_NR52, 0x80}, {Apu::REG_NR50, 0x77}, {Apu::REG_NR51, 0x11},
     {Apu::REG_NR12, 0xF0}, {Apu::REG_NR13, 0x00}, {Apu::REG_NR14, 0x87},
     {Apu::REG_NR11, 0x00}, {HOLD, 60}, // duty = 12.5%
 
@@ -58,7 +58,7 @@ static DemoCommand const DEMO_MASTER_VOLUME[] = {
 
 static DemoCommand const DEMO_NOISE[] = {
     // frame 0, setup control regs and retrigger CH4
-    {Apu::REG_NR52, 0x80}, {Apu::REG_NR51, 0xFF}, {Apu::REG_NR50, 0x77},
+    {Apu::REG_NR52, 0x80}, {Apu::REG_NR50, 0x77}, {Apu::REG_NR51, 0x88},
     {Apu::REG_NR42, 0xF0}, {Apu::REG_NR43, 0x77}, {Apu::REG_NR44, 0x80}, {HOLD, 5},
     {Apu::REG_NR43, 0x76}, {HOLD, 5},
     {Apu::REG_NR43, 0x75}, {HOLD, 5},
@@ -99,7 +99,7 @@ static DemoCommand const DEMO_NOISE[] = {
 
 static DemoCommand const DEMO_WAVE[] = {
     // frame 0, setup control regs and retrigger CH4
-    {Apu::REG_NR52, 0x80}, {Apu::REG_NR51, 0x44}, {Apu::REG_NR50, 0x77},
+    {Apu::REG_NR52, 0x80}, {Apu::REG_NR50, 0x77}, {Apu::REG_NR51, 0x44},
     {Apu::REG_NR32, 0x20}, // volume = 100%
     {Apu::REG_WAVERAM,      0x01},
     {Apu::REG_WAVERAM + 1,  0x23},
@@ -165,7 +165,7 @@ static DemoCommand const DEMO_HEADROOM[] = {
 };
 
 static DemoCommand const DEMO_ENVELOPE[] = {
-    {Apu::REG_NR52, 0x80}, {Apu::REG_NR51, 0x11}, {Apu::REG_NR50, 0x77},
+    {Apu::REG_NR52, 0x80}, {Apu::REG_NR50, 0x77}, {Apu::REG_NR51, 0x11},
     {Apu::REG_NR12, 0xF7}, {Apu::REG_NR14, 0x87}, {HOLD, 120},
     {Apu::REG_NR12, 0xF6}, {Apu::REG_NR14, 0x87}, {HOLD, 90},
     {Apu::REG_NR12, 0xF5}, {Apu::REG_NR14, 0x87}, {HOLD, 70},
@@ -220,6 +220,29 @@ static DemoCommand const DEMO_PANNING[] = {
     {Apu::REG_NR51, 0x88}, {HOLD, 4}
 };
 
+// enabling/disabling a terminal results in the addition/removal of a DC offset
+// the output should have "pops" every 4 frames
+static DemoCommand const DEMO_POPS[] = {
+    {Apu::REG_NR52, 0x80}, {Apu::REG_NR50, 0x77},
+    {Apu::REG_NR51, 0x11}, {HOLD, 4},
+    {Apu::REG_NR51, 0x33}, {HOLD, 4},
+    {Apu::REG_NR51, 0x77}, {HOLD, 4},
+    {Apu::REG_NR51, 0xFF}, {HOLD, 4},
+    {Apu::REG_NR51, 0x77}, {HOLD, 4},
+    {Apu::REG_NR51, 0x33}, {HOLD, 4},
+    {Apu::REG_NR51, 0x11}, {HOLD, 4},
+    {Apu::REG_NR51, 0x00}, {HOLD, 4},
+    {Apu::REG_NR51, 0x10}, {HOLD, 4},
+    {Apu::REG_NR51, 0x01}, {HOLD, 4},
+    {Apu::REG_NR51, 0x00}, {HOLD, 4},
+    {Apu::REG_NR51, 0xFF}, {HOLD, 4},
+    {Apu::REG_NR51, 0x00}, {HOLD, 4},
+    {Apu::REG_NR51, 0xFF}, {HOLD, 4}
+
+
+
+};
+
 struct Demo {
     const char *name;
     DemoCommand const *sequence;
@@ -235,7 +258,8 @@ static Demo const DEMO_TABLE[] = {
     demoStruct("wave", DEMO_WAVE),
     demoStruct("headroom", DEMO_HEADROOM),
     demoStruct("envelope", DEMO_ENVELOPE),
-    demoStruct("panning", DEMO_PANNING)
+    demoStruct("panning", DEMO_PANNING),
+    demoStruct("pops", DEMO_POPS)
 };
 
 constexpr size_t DEMO_COUNT = sizeof(DEMO_TABLE) / sizeof(Demo);
@@ -246,7 +270,7 @@ int main() {
 
     Apu apu(SAMPLERATE, SAMPLERATE / 10);//, Apu::Quality::medium);
     apu.setQuality(Apu::Quality::high);
-    apu.setVolume(0.6f);
+    //apu.setVolume(0.6f);
 
     constexpr size_t samplesPerFrame = (CYCLES_PER_FRAME / CYCLES_PER_SAMPLE) + 1;
     std::unique_ptr<int16_t[]> frameBuf(new int16_t[samplesPerFrame * 2]);

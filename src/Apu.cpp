@@ -49,6 +49,11 @@ void Apu::reset() noexcept {
     mRightVolume = 1;
     mEnabled = false;
 
+    for (auto &panning : mPannings) {
+        panning = _internal::modeSetPanning(panning, 0);
+    }
+    mRegs.byArray.fill(0);
+
     updateVolume();
 }
 
@@ -266,41 +271,70 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
             mCf.ch4.writeFrequencyMsb(value);
             mRegs.byName.nr44 = value & 0xC0;
             break;
-        case REG_NR50:
+        case REG_NR50: {
             // do nothing with the Vin bits
             // Vin will not be emulated since no cartridge in history ever made use of it
             mLeftVolume = ((value >> 4) & 0x7) + 1;
             mRightVolume = (value & 0x7) + 1;
 
-            
+            // a change in volume will require a transition to the new volume step
 
+            auto oldVolumeLeft = mMixer.leftVolume();
+            auto oldVolumeRight = mMixer.rightVolume();
+            auto oldDcLeft = mMixer.dcLeft();
+            auto oldDcRight = mMixer.dcRight();
+
+            // calculate and set the new volume in the mixer
             updateVolume();
+
+            // volume and DC differentials
+            auto leftVolDiff = mMixer.leftVolume() - oldVolumeLeft;
+            auto rightVolDiff = mMixer.rightVolume() - oldVolumeRight;
+            auto leftDcDiff = mMixer.dcLeft() - oldDcLeft;
+            auto rightDcDiff = mMixer.dcRight() - oldDcRight;
+
+
+            std::array<_internal::ChannelBase*, 4> channels = { &mCf.ch1, &mCf.ch2, &mCf.ch3, &mCf.ch4 };
+            for (size_t i = 0; i != mPannings.size(); ++i) {
+                auto mode = mPannings[i];
+                auto output = channels[i]->lastOutput();
+                if (_internal::modePansLeft(mode)) {
+                    auto delta = (int16_t)((output * leftVolDiff + leftDcDiff + 0x8000) >> 16);
+                    mMixer.addDelta(mode, 0, mCycletime, delta);
+                }
+                if (_internal::modePansRight(mode)) {
+                    auto delta = (int16_t)((output * rightVolDiff + rightDcDiff + 0x8000) >> 16);
+                    mMixer.addDelta(mode, 1, mCycletime, delta);
+                }
+            }
+
+
+
             mRegs.byName.nr50 = value & 0x77;
             break;
-        case REG_NR51:
-        {
+        }
+        case REG_NR51: {
+
             auto changes = mRegs.byName.nr51 ^ value;
             auto panning = value;
             std::array<_internal::ChannelBase*, 4> channels = { &mCf.ch1, &mCf.ch2, &mCf.ch3, &mCf.ch4 };
             for (size_t i = 0; i != mPannings.size(); ++i) {
                 auto currentMode = mPannings[i];
-                //if (channels[i]->dacOn()) {
-                    auto dacOutput = channels[i]->dacOutput();
-                    if (!!(changes & 0x10)) {
-                        // the left terminal output status changed, determine amplitude
-                        auto ampl = (int16_t)((dacOutput * mMixer.leftVolume() + 0x8000) >> 16);
-                        // if the new value is ON, go to this amplitude, otherwise drop down to 0
-                        mMixer.addDelta(currentMode, 0, mCycletime, !!(panning & 0x10) ? ampl : -ampl);
+                auto dacOutput = channels[i]->lastOutput();
+                if (!!(changes & 0x10)) {
+                    // the left terminal output status changed, determine amplitude
+                    auto ampl = (int16_t)((dacOutput * mMixer.leftVolume() + mMixer.dcLeft() + 0x8000) >> 16);
+                    // if the new value is ON, go to this amplitude, otherwise drop down to 0
+                    mMixer.addDelta(currentMode, 0, mCycletime, !!(panning & 0x10) ? ampl : -ampl);
 
-                    }
+                }
 
-                    if (!!(changes & 0x01)) {
-                        // same as above but for the right terminal
-                        auto ampl = (int16_t)((dacOutput * mMixer.rightVolume() + 0x8000) >> 16);
-                        mMixer.addDelta(currentMode, 1, mCycletime, !!(panning & 0x01) ? ampl : -ampl);
+                if (!!(changes & 0x01)) {
+                    // same as above but for the right terminal
+                    auto ampl = (int16_t)((dacOutput * mMixer.rightVolume() + mMixer.dcRight() + 0x8000) >> 16);
+                    mMixer.addDelta(currentMode, 1, mCycletime, !!(panning & 0x01) ? ampl : -ampl);
 
-                    }
-                //}
+                }
 
                 mPannings[i] = _internal::modeSetPanning(currentMode, panning & 0x11);
                 panning >>= 1;
@@ -308,8 +342,8 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
             }
 
             mRegs.byName.nr51 = value;
-        }
             break;
+        }
         case REG_NR52:
             if (!!(value & 0x80) != mEnabled) {
                 
@@ -400,12 +434,6 @@ void Apu::updateVolume() {
     auto rightVol = mRightVolume * mVolumeStep;
     mMixer.setVolume(leftVol, rightVol);
 
-    // flat EQ, each channel has the same volume step
-    // individual volume steps could be used for channel equalization (ie make CH4 quieter)
-    /*mMixer1.setVolume(leftVol, rightVol, mCycletime);
-    mMixer2.setVolume(leftVol, rightVol, mCycletime);
-    mMixer3.setVolume(leftVol, rightVol, mCycletime);
-    mMixer4.setVolume(leftVol, rightVol, mCycletime);*/
 }
 
 void Apu::updateQuality() {
@@ -415,10 +443,6 @@ void Apu::updateQuality() {
     mPannings[1] = _internal::modeSetQuality(mPannings[1], high12);
     mPannings[2] = _internal::modeSetQuality(mPannings[2], high34);
     mPannings[3] = _internal::modeSetQuality(mPannings[3], high34);
-    /*mMixer1.setQuality(high12);
-    mMixer2.setQuality(high12);
-    mMixer3.setQuality(high34);
-    mMixer4.setQuality(high34);*/
 }
 
 // Buffer stuff

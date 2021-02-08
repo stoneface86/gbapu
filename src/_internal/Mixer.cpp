@@ -152,7 +152,9 @@ void Mixer::mixfast(int8_t delta, uint32_t cycletime) {
 Mixer::Mixer(BlipBuf &buf) :
     mBlip(buf),
     mVolumeStepLeft(0),
-    mVolumeStepRight(0)
+    mVolumeStepRight(0),
+    mDcLeft(0),
+    mDcRight(0)
 {
 }
 
@@ -210,6 +212,11 @@ void Mixer::mixfast(int8_t delta, uint32_t cycletime) {
 void Mixer::setVolume(int32_t leftVolume, int32_t rightVolume) {
     mVolumeStepLeft = leftVolume;
     mVolumeStepRight = rightVolume;
+
+    // DC offset is a DAC sample of -7.5
+    mDcLeft = (-7 * mVolumeStepLeft) + (mVolumeStepLeft / 2);
+    mDcRight = (-7 * mVolumeStepRight) + (mVolumeStepRight / 2);
+
 }
 
 int32_t Mixer::leftVolume() const noexcept {
@@ -218,6 +225,14 @@ int32_t Mixer::leftVolume() const noexcept {
 
 int32_t Mixer::rightVolume() const noexcept {
     return mVolumeStepRight;
+}
+
+int32_t Mixer::dcLeft() const noexcept {
+    return mDcLeft;
+}
+
+int32_t Mixer::dcRight() const noexcept {
+    return mDcRight;
 }
 
 }
