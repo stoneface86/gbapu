@@ -176,7 +176,7 @@ uint8_t Apu::readRegister(uint8_t reg, uint32_t autostep) {
         case REG_WAVERAM + 13:
         case REG_WAVERAM + 14:
         case REG_WAVERAM + 15:
-            if (mModel == Model::cgb || mCf.ch3.canAccessRam(mCycletime)) {
+            if (mModel == Model::cgb || !mCf.ch3.dacOn()) {
                 auto waveram = mCf.ch3.waveram();
                 return waveram[reg - REG_WAVERAM];
             }
@@ -386,7 +386,7 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
             // if CH3's DAC is enabled, then the write goes to the current waveposition
             // this can only be done within a few clocks when CH3 accesses waveram, otherwise the write has no effect
             // this behavior was fixed for the CGB, so we can access waveram whenever
-            if (mModel == Model::cgb || mCf.ch3.canAccessRam(mCycletime)) {
+            if (mModel == Model::cgb || !mCf.ch3.dacOn()) {
                 auto waveram = mCf.ch3.waveram();
                 waveram[reg - REG_WAVERAM] = value;
             }

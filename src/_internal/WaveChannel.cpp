@@ -29,7 +29,6 @@ namespace gbapu::_internal {
 
 WaveChannel::WaveChannel() noexcept :
     ChannelBase(DEFAULT_PERIOD, MIN_PERIOD, 0),
-    mLastRamAccess(0),
     mVolumeShift(0),
     mWaveIndex(0),
     mSampleBuffer(0),
@@ -39,16 +38,6 @@ WaveChannel::WaveChannel() noexcept :
 
 uint8_t* WaveChannel::waveram() noexcept {
     return mWaveram;
-}
-
-bool WaveChannel::canAccessRam(uint32_t timestamp) const noexcept {
-    if (mDacOn) {
-        int64_t diff = timestamp - mLastRamAccess;
-        return (diff >= 0 && diff < RAM_ACCESS_THRESHOLD);
-    } else {
-        // can always access ram when the DAC is off
-        return true;
-    }
 }
 
 uint8_t WaveChannel::readVolume() const noexcept {
@@ -64,7 +53,6 @@ uint8_t WaveChannel::readVolume() const noexcept {
 
 void WaveChannel::reset() noexcept {
     ChannelBase::reset();
-    mLastRamAccess = 0;
     mVolumeShift = 0;
     std::fill_n(mWaveram, constants::WAVE_RAMSIZE, static_cast<uint8_t>(0));
     mSampleBuffer = 0;
@@ -115,10 +103,6 @@ void WaveChannel::stepOscillator() noexcept {
 void WaveChannel::setPeriod() noexcept {
     mPeriod = (2048 - mFrequency) * WAVE_MULTIPLIER;
 }
-
-//Gbs::WaveVolume WaveChannel::volume() const noexcept {
-//    return mVolume;
-//}
 
 void WaveChannel::setOutput() {
     mOutput = mSampleBuffer >> mVolumeShift;

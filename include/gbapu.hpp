@@ -308,13 +308,6 @@ public:
 
     WaveChannel() noexcept;
 
-    //
-    // Returns true if the waveram can be freely access
-    // Always true if the DAC is off
-    // if the DAC is on then true is returned if timestamp is near the timestamp of the channel's
-    // last access
-    bool canAccessRam(uint32_t timestamp) const noexcept;
-
     uint8_t* waveram() noexcept;
 
     uint8_t readVolume() const noexcept;
@@ -335,8 +328,6 @@ protected:
 private:
 
     void setOutput();
-
-    uint32_t mLastRamAccess;
 
     //Gbs::WaveVolume mVolume;
     uint8_t mVolumeShift;
