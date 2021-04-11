@@ -20,7 +20,6 @@ Apu::Apu(unsigned samplerate, size_t buffersizeInSamples, Quality quality, Model
     mLeftVolume(1),
     mRightVolume(1),
     mEnabled(false),
-    mIsHighQuality(true),
     mSamplerate(samplerate),
     mBuffersize(buffersizeInSamples),
     mResizeRequired(true)

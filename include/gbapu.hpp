@@ -594,10 +594,6 @@ private:
 
     bool mEnabled;
 
-    // buffer
-    //struct Internal;
-
-    bool mIsHighQuality;
     // Q16.16
     int32_t mVolumeStep;
     unsigned mSamplerate;

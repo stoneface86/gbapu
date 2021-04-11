@@ -62,7 +62,7 @@ void NoiseChannel::setPeriod() noexcept {
     mHalfWidth = !!((mFrequency >> 3) & 1);
     // scf = "shift clock frequency"
     auto scf = mFrequency >> 4;
-    mValidScf = scf < 0xD; // obscure behavior: if scf >= 0xD then the channel receives no clocks
+    mValidScf = scf < 0xE; // obscure behavior: a scf of 14 or 15 results in the channel receiving no clocks
     mPeriod = drf << scf;
 }
 

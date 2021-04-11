@@ -83,9 +83,11 @@ accessing the register. The default is 3 since the `ldh` instruction takes
    from the buffer.
  * `Apu::endFrame` must be called before the buffer fills up completely, if
    you do not need to read samples, just clear the buffer.
- * Performance can be improved by lowering the quality setting of the buffer.
-   Lower quality settings result in a linear interpolated step instead of a
-   bandlimited one. Default quality setting is the highest.
+ * Performance can be improved by lowering the quality setting of the Apu.
+   There are 3 quality settings: low, medium and high. Low quality will use
+   linear interpolation on all channels. Medium uses bandlimited synthesis
+   for CH1 and CH2 and linear interpolation for CH3 and CH4. High quality uses
+   bandlimited synthesis on all channels. Default quality is medium.
  * The Apu has a volume setting, default is 100% or 0.0 dB. Each channel gets
    25% of this volume setting. Note that clipping may occur at 100% due to
    overshoots and/or from high pass filtering.
