@@ -216,9 +216,9 @@ public:
 
     void stepEnvelope() noexcept;
 
-    virtual void restart() noexcept;
+    virtual void restart() noexcept override;
 
-    virtual void reset() noexcept;
+    virtual void reset() noexcept override;
 
 
 protected:
@@ -248,15 +248,15 @@ public:
 
     uint8_t readDuty() const noexcept;
 
-    virtual void reset() noexcept;
+    virtual void reset() noexcept override;
 
-    virtual void restart() noexcept;
+    virtual void restart() noexcept override;
 
 protected:
 
-    void stepOscillator() noexcept override;
+    virtual void stepOscillator() noexcept override;
 
-    void setPeriod() noexcept override;
+    virtual void setPeriod() noexcept override;
 
 private:
 
@@ -275,9 +275,9 @@ public:
 
     uint8_t readSweep() const noexcept;
 
-    void reset() noexcept;
+    virtual void reset() noexcept override;
 
-    void restart() noexcept;
+    virtual void restart() noexcept override;
 
     void writeSweep(uint8_t reg) noexcept;
 
@@ -312,18 +312,18 @@ public:
 
     uint8_t readVolume() const noexcept;
 
-    void reset() noexcept;
+    virtual void reset() noexcept override;
 
-    void restart() noexcept;
+    virtual void restart() noexcept override;
 
     void writeVolume(uint8_t volume) noexcept;
 
 
 protected:
 
-    void stepOscillator() noexcept override;
+    virtual void stepOscillator() noexcept override;
 
-    void setPeriod() noexcept override;
+    virtual void setPeriod() noexcept override;
 
 private:
 
@@ -346,14 +346,14 @@ public:
 
     uint8_t readNoise() const noexcept;
 
-    void restart() noexcept;
+    virtual void restart() noexcept override;
 
-    void reset() noexcept;
+    virtual void reset() noexcept override;
 
 protected:
-    void stepOscillator() noexcept override;
+    virtual void stepOscillator() noexcept override;
 
-    void setPeriod() noexcept override;
+    virtual void setPeriod() noexcept override;
 
 private:
 
