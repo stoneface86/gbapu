@@ -94,5 +94,12 @@ int32_t Mixer::dcRight() const noexcept {
     return mDcRight;
 }
 
+template void Mixer::mixfast<MixMode::lowQualityLeft>(int8_t delta, uint32_t cycletime);
+template void Mixer::mixfast<MixMode::lowQualityRight>(int8_t delta, uint32_t cycletime);
+template void Mixer::mixfast<MixMode::lowQualityMiddle>(int8_t delta, uint32_t cycletime);
+template void Mixer::mixfast<MixMode::highQualityLeft>(int8_t delta, uint32_t cycletime);
+template void Mixer::mixfast<MixMode::highQualityRight>(int8_t delta, uint32_t cycletime);
+template void Mixer::mixfast<MixMode::highQualityMiddle>(int8_t delta, uint32_t cycletime);
+
 }
 
