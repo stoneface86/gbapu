@@ -30,25 +30,16 @@ struct BlipBuf;
 // mix flags
 constexpr int MIX_LEFT = 2;
 constexpr int MIX_RIGHT = 1;
-constexpr int MIX_QUALITY = 4;
 
 enum class MixMode {
-    lowQualityMute      = 0,
-    lowQualityLeft      = MIX_LEFT,
-    lowQualityRight     = MIX_RIGHT,
-    lowQualityMiddle    = MIX_LEFT | MIX_RIGHT,
-    highQualityMute     = MIX_QUALITY,
-    highQualityLeft     = MIX_QUALITY | MIX_LEFT,
-    highQualityRight    = MIX_QUALITY | MIX_RIGHT,
-    highQualityMiddle   = MIX_QUALITY | MIX_LEFT | MIX_RIGHT
+    mute      = 0,
+    left      = MIX_LEFT,
+    right     = MIX_RIGHT,
+    middle    = MIX_LEFT | MIX_RIGHT
 };
 
 constexpr int operator+(MixMode mode) {
     return static_cast<int>(mode);
-}
-
-constexpr bool modeIsHighQuality(MixMode mode) {
-    return !!(+mode & MIX_QUALITY);
 }
 
 constexpr bool modePansLeft(MixMode mode) {
@@ -57,14 +48,6 @@ constexpr bool modePansLeft(MixMode mode) {
 
 constexpr bool modePansRight(MixMode mode) {
     return !!(+mode & MIX_RIGHT);
-}
-
-constexpr MixMode modeSetQuality(MixMode mode, bool quality) {
-    if (quality) {
-        return static_cast<MixMode>(+mode | MIX_QUALITY);
-    } else {
-        return static_cast<MixMode>(+mode & ~MIX_QUALITY);
-    }
 }
 
 constexpr MixMode modeSetPanning(MixMode mode, int panning) {
@@ -78,7 +61,7 @@ class Mixer {
 public:
     Mixer(BlipBuf &blip);
 
-    void addDelta(MixMode mode, int term, uint32_t cycletime, int16_t delta);
+    void addDelta(int term, uint32_t cycletime, int16_t delta);
 
     void mix(MixMode mode, int8_t sample, uint32_t cycletime);
 
@@ -465,12 +448,6 @@ public:
         cgb
     };
 
-    enum class Quality {
-        low,            // low quality on all channels
-        medium,         // high quality on 1 + 2, low quality on 3 + 4
-        high            // high quality on all channels
-    };
-
     enum Reg {
         // CH1 - Square 1 --------------------------------------------------------
         REG_NR10 = 0x10, // -PPP NSSS | sweep period, negate, shift
@@ -507,7 +484,6 @@ public:
     Apu(
         unsigned samplerate,
         size_t buffersizeInSamples,
-        Quality quality = Quality::medium,
         Model model = Model::dmg
     );
     ~Apu();
@@ -553,8 +529,6 @@ public:
 
     // settings
 
-    void setQuality(Quality quality);
-
     void setVolume(float gain);
 
     void setSamplerate(unsigned samplerate);
@@ -566,10 +540,8 @@ public:
 private:
 
     void updateVolume();
-    void updateQuality();
 
     Model mModel;
-    Quality mQuality;
     
     std::unique_ptr<_internal::BlipBuf> mBlip;
 

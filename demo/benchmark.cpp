@@ -123,19 +123,6 @@ int main() {
     BenchmarkResults results;
 
     std::cout << "Synthesizing " << FRAMES_PER_BENCHMARK << " frames per test" << std::endl;
-
-    std::cout << std::endl << "Quality: Low" << std::endl;
-    apu.setQuality(gbapu::Apu::Quality::low);
-    doBenchmark(apu, results);
-    printResults(results);
-
-    std::cout << std::endl << "Quality: Medium" << std::endl;
-    apu.setQuality(gbapu::Apu::Quality::medium);
-    doBenchmark(apu, results);
-    printResults(results);
-
-    std::cout << std::endl << "Quality: High" << std::endl;
-    apu.setQuality(gbapu::Apu::Quality::high);
     doBenchmark(apu, results);
     printResults(results);
 

@@ -7,12 +7,11 @@
 
 namespace gbapu {
 
-Apu::Apu(unsigned samplerate, size_t buffersizeInSamples, Quality quality, Model model) :
+Apu::Apu(unsigned samplerate, size_t buffersizeInSamples, Model model) :
     mModel(model),
-    mQuality(quality),
     mBlip(new _internal::BlipBuf()),
     mMixer(*mBlip.get()),
-    mPannings{ _internal::MixMode::lowQualityMute },
+    mPannings{ _internal::MixMode::mute },
     mCf(),
     mSequencer(mCf),
     mRegs{ 0 },
@@ -26,8 +25,6 @@ Apu::Apu(unsigned samplerate, size_t buffersizeInSamples, Quality quality, Model
 {
     resizeBuffer();
     setVolume(1.0f);
-
-    updateQuality();
 }
 
 Apu::~Apu() = default;
@@ -299,11 +296,11 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
                 auto output = channels[i]->lastOutput();
                 if (_internal::modePansLeft(mode)) {
                     auto delta = (int16_t)((output * leftVolDiff + leftDcDiff + 0x8000) >> 16);
-                    mMixer.addDelta(mode, 0, mCycletime, delta);
+                    mMixer.addDelta(0, mCycletime, delta);
                 }
                 if (_internal::modePansRight(mode)) {
                     auto delta = (int16_t)((output * rightVolDiff + rightDcDiff + 0x8000) >> 16);
-                    mMixer.addDelta(mode, 1, mCycletime, delta);
+                    mMixer.addDelta(1, mCycletime, delta);
                 }
             }
 
@@ -324,14 +321,14 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
                     // the left terminal output status changed, determine amplitude
                     auto ampl = (int16_t)((dacOutput * mMixer.leftVolume() + mMixer.dcLeft() + 0x8000) >> 16);
                     // if the new value is ON, go to this amplitude, otherwise drop down to 0
-                    mMixer.addDelta(currentMode, 0, mCycletime, !!(panning & 0x10) ? ampl : -ampl);
+                    mMixer.addDelta(0, mCycletime, !!(panning & 0x10) ? ampl : -ampl);
 
                 }
 
                 if (!!(changes & 0x01)) {
                     // same as above but for the right terminal
                     auto ampl = (int16_t)((dacOutput * mMixer.rightVolume() + mMixer.dcRight() + 0x8000) >> 16);
-                    mMixer.addDelta(currentMode, 1, mCycletime, !!(panning & 0x01) ? ampl : -ampl);
+                    mMixer.addDelta(1, mCycletime, !!(panning & 0x01) ? ampl : -ampl);
 
                 }
 
@@ -435,15 +432,6 @@ void Apu::updateVolume() {
 
 }
 
-void Apu::updateQuality() {
-    bool high12 = mQuality != Quality::low;
-    bool high34 = mQuality == Quality::high;
-    mPannings[0] = _internal::modeSetQuality(mPannings[0], high12);
-    mPannings[1] = _internal::modeSetQuality(mPannings[1], high12);
-    mPannings[2] = _internal::modeSetQuality(mPannings[2], high34);
-    mPannings[3] = _internal::modeSetQuality(mPannings[3], high34);
-}
-
 // Buffer stuff
 
 size_t Apu::availableSamples() {
@@ -460,13 +448,6 @@ size_t Apu::readSamples(int16_t *dest, size_t samples) {
 void Apu::clearSamples() {
     blip_clear(mBlip->bbuf[0]);
     blip_clear(mBlip->bbuf[1]);
-}
-
-void Apu::setQuality(Quality quality) {
-    if (mQuality != quality) {
-        mQuality = quality;
-        updateQuality();
-    }
 }
 
 void Apu::setVolume(float gain) {

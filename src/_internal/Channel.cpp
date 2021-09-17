@@ -66,38 +66,28 @@ void ChannelBase::step(Mixer &mixer, MixMode mode, uint32_t cycletime, uint32_t 
                 //
                 mixer.mix(mode, -mLastOutput, cycletime);
             }
-            stepImpl<MixMode::lowQualityMute>(mixer, cycletime, cycles);
+            stepImpl<MixMode::mute>(mixer, cycletime, cycles);
             mOutput = 0;
             mLastOutput = 0;
         } else if (mPeriod < mMinPeriod) {
             // channel is disabled or is too high of a frequency, don't bother mixing
             // no need to a transition to 0, the high pass filter will do so eventually
-            stepImpl<MixMode::lowQualityMute>(mixer, cycletime, cycles);
+            stepImpl<MixMode::mute>(mixer, cycletime, cycles);
             
         } else {
 
             switch (mode) {
-                case MixMode::lowQualityMute:
-                case MixMode::highQualityMute:
-                    stepImpl<MixMode::lowQualityMute>(mixer, cycletime, cycles);
+                case MixMode::mute:
+                    stepImpl<MixMode::mute>(mixer, cycletime, cycles);
                     break;
-                case MixMode::lowQualityLeft:
-                    stepImpl<MixMode::lowQualityLeft>(mixer, cycletime, cycles);
+                case MixMode::left:
+                    stepImpl<MixMode::left>(mixer, cycletime, cycles);
                     break;
-                case MixMode::lowQualityRight:
-                    stepImpl<MixMode::lowQualityRight>(mixer, cycletime, cycles);
+                case MixMode::right:
+                    stepImpl<MixMode::right>(mixer, cycletime, cycles);
                     break;
-                case MixMode::lowQualityMiddle:
-                    stepImpl<MixMode::lowQualityMiddle>(mixer, cycletime, cycles);
-                    break;
-                case MixMode::highQualityLeft:
-                    stepImpl<MixMode::highQualityLeft>(mixer, cycletime, cycles);
-                    break;
-                case MixMode::highQualityRight:
-                    stepImpl<MixMode::highQualityRight>(mixer, cycletime, cycles);
-                    break;
-                case MixMode::highQualityMiddle:
-                    stepImpl<MixMode::highQualityMiddle>(mixer, cycletime, cycles);
+                case MixMode::middle:
+                    stepImpl<MixMode::middle>(mixer, cycletime, cycles);
                     break;
                 default:
                     break;
@@ -110,7 +100,7 @@ void ChannelBase::step(Mixer &mixer, MixMode mode, uint32_t cycletime, uint32_t 
 template <MixMode mode>
 void ChannelBase::stepImpl(Mixer &mixer, uint32_t cycletime, uint32_t cycles) {
     while (cycles) {
-        if constexpr (mode != MixMode::lowQualityMute) {
+        if constexpr (mode != MixMode::mute) {
             if (mLastOutput != mOutput) {
                 mixer.mixfast<mode>(mOutput - mLastOutput, cycletime);
                 mLastOutput = mOutput;
@@ -124,7 +114,7 @@ void ChannelBase::stepImpl(Mixer &mixer, uint32_t cycletime, uint32_t cycles) {
         cycletime += toStep;
     }
 
-    if constexpr (mode == MixMode::lowQualityMute) {
+    if constexpr (mode == MixMode::mute) {
         // kept out of the loop for speed
         mLastOutput = mOutput;
     }

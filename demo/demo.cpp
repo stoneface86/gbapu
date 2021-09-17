@@ -268,8 +268,7 @@ using Clock = std::chrono::steady_clock;
 
 int main() {
 
-    Apu apu(SAMPLERATE, SAMPLERATE / 10);//, Apu::Quality::medium);
-    apu.setQuality(Apu::Quality::high);
+    Apu apu(SAMPLERATE, SAMPLERATE / 10);
     //apu.setVolume(0.6f);
 
     constexpr size_t samplesPerFrame = (CYCLES_PER_FRAME / CYCLES_PER_SAMPLE) + 1;
