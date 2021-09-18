@@ -13,7 +13,6 @@ actual hardware will not be implemented in this library.
 ## Building
 
 Build the library using CMake and a C++ compiler that supports the C++17 standard.
-The only dependency is blip_buf (v1.1.0) and is included in this repository.
 
 To build the demos, set the `GBAPU_DEMOS` option to ON when configuring. The demo
 program creates a bunch of wav files demonstrating the use of the emulator.
