@@ -4,7 +4,7 @@ Gameboy APU emulator
 This is a static library for a gameboy APU emulator. This library was written
 for use in [trackerboy][trackerboy-url], a gameboy music tracker, but can also
 be used in other projects. The library produces high quality audio using
-blargg's [blip_buf][blip-buf-url] library.
+bandlimited synthesis.
 
 The goal of this emulator is to produce quality sound, that sounds "close enough"
 to real hardware. Most obscure behaviors and glitches that are present on the
@@ -115,7 +115,6 @@ This project is licensed under the MIT License - See [LICENSE](LICENSE) for
 details.
 
 [trackerboy-url]: https://github.com/stoneface86/trackerboy
-[blip-buf-url]: https://code.google.com/archive/p/blip-buf/
 [obscure-behavior-reference]: https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware#Obscure_Behavior
 [pan-docs-url]: https://gbdev.io/pandocs/#sound-controller
 [gameboy-manual-url]: https://archive.org/download/GameBoyProgManVer1.1/GameBoyProgManVer1.1.pdf
