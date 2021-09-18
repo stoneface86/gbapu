@@ -24,8 +24,6 @@ constexpr T CLOCK_SPEED = T(4194304);
 
 namespace _internal {
 
-// container for blip_buf_t. Forward-declared so we can keep blip_buf out of the public API
-struct BlipBuf;
 
 // mix flags
 constexpr int MIX_LEFT = 2;
@@ -59,33 +57,62 @@ constexpr MixMode modeSetPanning(MixMode mode, int panning) {
 class Mixer {
 
 public:
-    Mixer(BlipBuf &blip);
-
-    void addDelta(int term, uint32_t cycletime, int16_t delta);
+    Mixer();
 
     void mix(MixMode mode, int8_t sample, uint32_t cycletime);
+
+    void mixDc(float dcLeft, float dcRight, uint32_t cycletime);
 
     template <MixMode mode>
     void mixfast(int8_t sample, uint32_t cycletime);
 
-    void setVolume(int32_t leftVolume, int32_t rightVolume);
+    void setVolume(float leftVolume, float rightVolume);
 
-    int32_t leftVolume() const noexcept;
+    float leftVolume() const noexcept;
 
-    int32_t rightVolume() const noexcept;
+    float rightVolume() const noexcept;
 
-    int32_t dcLeft() const noexcept;
+    // buffer management
 
-    int32_t dcRight() const noexcept;
+    void setBuffer(size_t samples);
+
+    void setSamplerate(unsigned rate);
+
+    void endFrame(uint32_t cycletime);
+
+    size_t availableSamples() const noexcept;
+
+    size_t readSamples(float buf[], size_t samples);
+
+    void removeSamples(size_t samples);
+
+    float sampletime(uint32_t cycletime) const noexcept;
+
+    void clear();
 
 private:
 
-    BlipBuf &mBlip;
-    int32_t mVolumeStepLeft;
-    int32_t mVolumeStepRight;
+    struct MixParam {
+        // the stepset to use
+        float const* stepset;
+        // the destination in the buffer to mix the step
+        float *dest;
 
-    int32_t mDcLeft;
-    int32_t mDcRight;
+    };
+
+    MixParam getMixParameters(uint32_t cycletime);
+
+    float mVolumeStepLeft;
+    float mVolumeStepRight;
+
+    float mFactor;
+
+    std::unique_ptr<float[]> mBuffer;
+    size_t mBuffersize;
+    float mSumLeft;
+    float mSumRight;
+    float mSampleOffset;
+    size_t mWriteIndex;
 
 
 };
@@ -512,9 +539,9 @@ public:
     //
     void endFrame();
 
-    uint8_t readRegister(uint8_t reg, uint32_t autostep = 3);
+    uint8_t readRegister(uint8_t reg, uint32_t autostep = 12);
 
-    void writeRegister(uint8_t reg, uint8_t value, uint32_t autostep = 3);
+    void writeRegister(uint8_t reg, uint8_t value, uint32_t autostep = 12);
 
     // Output buffer
 
@@ -522,7 +549,7 @@ public:
 
     size_t availableSamples();
 
-    size_t readSamples(int16_t *dest, size_t samples);
+    size_t readSamples(float *dest, size_t samples);
 
     void clearSamples();
 
@@ -535,15 +562,11 @@ public:
 
     void setBuffersize(size_t samples);
 
-    void resizeBuffer();
-
 private:
 
     void updateVolume();
 
     Model mModel;
-    
-    std::unique_ptr<_internal::BlipBuf> mBlip;
 
     /*_internal::Mixer mMixer1;
     _internal::Mixer mMixer2;
@@ -566,11 +589,9 @@ private:
 
     bool mEnabled;
 
-    // Q16.16
-    int32_t mVolumeStep;
+    float mVolumeStep;
     unsigned mSamplerate;
     size_t mBuffersize;
-    bool mResizeRequired;
 
 };
 

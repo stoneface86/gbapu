@@ -1,7 +1,8 @@
 #include "gbapu.hpp"
-#include "wave_writer.h"
+#include "Wav.hpp"
 
 #include <cstdlib>
+#include <fstream>
 
 constexpr unsigned SAMPLERATE = 48000;
 constexpr double CYCLES_PER_SAMPLE = 4194304.0 / SAMPLERATE;
@@ -15,11 +16,12 @@ constexpr size_t FRAMES = 60 * 4;
 int main() {
 
     Apu apu(SAMPLERATE, SAMPLERATE / 10);
-    Wave_Writer wav(SAMPLERATE, "random.wav");
-    wav.enable_stereo();
+    std::ofstream stream("random.wav", std::ios::out | std::ios::binary);
+    Wav wav(stream, 2, SAMPLERATE);
+    wav.begin();
 
     constexpr size_t samplesPerFrame = (CYCLES_PER_FRAME / CYCLES_PER_SAMPLE) + 1;
-    std::unique_ptr<int16_t[]> frameBuf(new int16_t[samplesPerFrame * 2]);
+    auto frameBuf = std::make_unique<float[]>(samplesPerFrame * 2);
 
     // demo taken from blargg's gb_apu library
     int delay = 12;
@@ -46,8 +48,10 @@ int main() {
 
         size_t samples = apu.availableSamples();
         apu.readSamples(frameBuf.get(), samples);
-        wav.write(frameBuf.get(), samples * 2);
+        wav.write(frameBuf.get(), samples);
     }
+
+    wav.finish();
 
     return 0;
 }

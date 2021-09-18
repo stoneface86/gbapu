@@ -1,7 +1,5 @@
-
+﻿
 #include "gbapu.hpp"
-
-#include "_internal/BlipBuf.hpp"
 
 #include <algorithm>
 
@@ -9,8 +7,7 @@ namespace gbapu {
 
 Apu::Apu(unsigned samplerate, size_t buffersizeInSamples, Model model) :
     mModel(model),
-    mBlip(new _internal::BlipBuf()),
-    mMixer(*mBlip.get()),
+    mMixer(),
     mPannings{ _internal::MixMode::mute },
     mCf(),
     mSequencer(mCf),
@@ -20,11 +17,11 @@ Apu::Apu(unsigned samplerate, size_t buffersizeInSamples, Model model) :
     mRightVolume(1),
     mEnabled(false),
     mSamplerate(samplerate),
-    mBuffersize(buffersizeInSamples),
-    mResizeRequired(true)
+    mBuffersize(buffersizeInSamples)
 {
-    resizeBuffer();
     setVolume(1.0f);
+    mMixer.setBuffer(mBuffersize);
+    mMixer.setSamplerate(samplerate);
 }
 
 Apu::~Apu() = default;
@@ -35,6 +32,7 @@ Registers const& Apu::registers() const {
 
 void Apu::reset() noexcept {
     endFrame();
+    mMixer.clear();
 
     mSequencer.reset();
     mCf.ch1.reset();
@@ -277,31 +275,30 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
 
             auto oldVolumeLeft = mMixer.leftVolume();
             auto oldVolumeRight = mMixer.rightVolume();
-            auto oldDcLeft = mMixer.dcLeft();
-            auto oldDcRight = mMixer.dcRight();
 
             // calculate and set the new volume in the mixer
             updateVolume();
 
-            // volume and DC differentials
+            // volume differentials
             auto leftVolDiff = mMixer.leftVolume() - oldVolumeLeft;
             auto rightVolDiff = mMixer.rightVolume() - oldVolumeRight;
-            auto leftDcDiff = mMixer.dcLeft() - oldDcLeft;
-            auto rightDcDiff = mMixer.dcRight() - oldDcRight;
 
 
             std::array<_internal::ChannelBase*, 4> channels = { &mCf.ch1, &mCf.ch2, &mCf.ch3, &mCf.ch4 };
             for (size_t i = 0; i != mPannings.size(); ++i) {
                 auto mode = mPannings[i];
                 auto output = channels[i]->lastOutput();
+
+                float dcLeft = 0.0f;
+                float dcRight = 0.0f;
                 if (_internal::modePansLeft(mode)) {
-                    auto delta = (int16_t)((output * leftVolDiff + leftDcDiff + 0x8000) >> 16);
-                    mMixer.addDelta(0, mCycletime, delta);
+                    dcLeft = leftVolDiff * output;
                 }
                 if (_internal::modePansRight(mode)) {
-                    auto delta = (int16_t)((output * rightVolDiff + rightDcDiff + 0x8000) >> 16);
-                    mMixer.addDelta(1, mCycletime, delta);
+                    dcRight = rightVolDiff * output;
                 }
+
+                mMixer.mixDc(dcLeft, dcRight, mCycletime);
             }
 
 
@@ -313,24 +310,24 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
 
             auto changes = mRegs.byName.nr51 ^ value;
             auto panning = value;
-            std::array<_internal::ChannelBase*, 4> channels = { &mCf.ch1, &mCf.ch2, &mCf.ch3, &mCf.ch4 };
+            //std::array<_internal::ChannelBase*, 4> channels = { &mCf.ch1, &mCf.ch2, &mCf.ch3, &mCf.ch4 };
             for (size_t i = 0; i != mPannings.size(); ++i) {
                 auto currentMode = mPannings[i];
-                auto dacOutput = channels[i]->lastOutput();
-                if (!!(changes & 0x10)) {
-                    // the left terminal output status changed, determine amplitude
-                    auto ampl = (int16_t)((dacOutput * mMixer.leftVolume() + mMixer.dcLeft() + 0x8000) >> 16);
-                    // if the new value is ON, go to this amplitude, otherwise drop down to 0
-                    mMixer.addDelta(0, mCycletime, !!(panning & 0x10) ? ampl : -ampl);
+//                auto dacOutput = channels[i]->lastOutput();
+//                if (!!(changes & 0x10)) {
+//                    // the left terminal output status changed, determine amplitude
+//                    auto ampl = (int16_t)((dacOutput * mMixer.leftVolume() + mMixer.dcLeft() + 0x8000) >> 16);
+//                    // if the new value is ON, go to this amplitude, otherwise drop down to 0
+//                    mMixer.addDelta(0, mCycletime, !!(panning & 0x10) ? ampl : -ampl);
 
-                }
+//                }
 
-                if (!!(changes & 0x01)) {
-                    // same as above but for the right terminal
-                    auto ampl = (int16_t)((dacOutput * mMixer.rightVolume() + mMixer.dcRight() + 0x8000) >> 16);
-                    mMixer.addDelta(1, mCycletime, !!(panning & 0x01) ? ampl : -ampl);
+//                if (!!(changes & 0x01)) {
+//                    // same as above but for the right terminal
+//                    auto ampl = (int16_t)((dacOutput * mMixer.rightVolume() + mMixer.dcRight() + 0x8000) >> 16);
+//                    mMixer.addDelta(1, mCycletime, !!(panning & 0x01) ? ampl : -ampl);
 
-                }
+//                }
 
                 mPannings[i] = _internal::modeSetPanning(currentMode, panning & 0x11);
                 panning >>= 1;
@@ -419,8 +416,7 @@ void Apu::stepTo(uint32_t time) {
 }
 
 void Apu::endFrame() {
-    blip_end_frame(mBlip->bbuf[0], mCycletime);
-    blip_end_frame(mBlip->bbuf[1], mCycletime);
+    mMixer.endFrame(mCycletime);
     mCycletime = 0;
 }
 
@@ -435,28 +431,22 @@ void Apu::updateVolume() {
 // Buffer stuff
 
 size_t Apu::availableSamples() {
-    return blip_samples_avail(mBlip->bbuf[0]);
+    return mMixer.availableSamples();
 }
 
-size_t Apu::readSamples(int16_t *dest, size_t samples) {
-    auto toRead = static_cast<int>(std::min(samples, availableSamples()));
-    blip_read_samples(mBlip->bbuf[0], dest, toRead, 1);
-    blip_read_samples(mBlip->bbuf[1], dest + 1, toRead, 1);
-    return toRead;
+size_t Apu::readSamples(float *dest, size_t samples) {
+    return mMixer.readSamples(dest, samples);
 }
 
 void Apu::clearSamples() {
-    blip_clear(mBlip->bbuf[0]);
-    blip_clear(mBlip->bbuf[1]);
+    mMixer.clear();
 }
 
 void Apu::setVolume(float gain) {
 
-    auto limitQ = (int32_t)(gain * (INT16_MAX << 16));
-
     // max amp on each channel is 15 so max amp is 60
     // 8 master volume levels so 60 * 8 = 480
-    mVolumeStep = limitQ / 480;
+    mVolumeStep = gain / 480;
     updateVolume();
 
 }
@@ -464,29 +454,14 @@ void Apu::setVolume(float gain) {
 void Apu::setSamplerate(unsigned samplerate) {
     if (mSamplerate != samplerate) {
         mSamplerate = samplerate;
-        mResizeRequired = true;
+        mMixer.setSamplerate(samplerate);
     }
 }
 
 void Apu::setBuffersize(size_t samples) {
     if (mBuffersize != samples) {
         mBuffersize = samples;
-        mResizeRequired = true;
-    }
-}
-
-void Apu::resizeBuffer() {
-
-    if (mResizeRequired) {
-
-        for (int i = 0; i != 2; ++i) {
-            auto &bbuf = mBlip->bbuf[i];
-            blip_delete(bbuf);
-            bbuf = blip_new(static_cast<int>(mBuffersize));
-            blip_set_rates(bbuf, constants::CLOCK_SPEED<double>, mSamplerate);
-        }
-
-        mResizeRequired = false;
+        mMixer.setBuffer(samples);
     }
 }
 

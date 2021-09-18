@@ -1,10 +1,11 @@
 
 #include "gbapu.hpp"
-#include "wave_writer.h"
+#include "Wav.hpp"
 
 #include <chrono>
 #include <string>
 #include <iostream>
+#include <fstream>
 
 constexpr unsigned SAMPLERATE = 48000;
 constexpr double CYCLES_PER_SAMPLE = 4194304.0 / SAMPLERATE;
@@ -272,7 +273,7 @@ int main() {
     //apu.setVolume(0.6f);
 
     constexpr size_t samplesPerFrame = (CYCLES_PER_FRAME / CYCLES_PER_SAMPLE) + 1;
-    std::unique_ptr<int16_t[]> frameBuf(new int16_t[samplesPerFrame * 2]);
+    std::unique_ptr<float[]> frameBuf = std::make_unique<float[]>(samplesPerFrame * 2);
 
     //auto timeStart = std::chrono::steady_clock::now();
 
@@ -287,8 +288,9 @@ int main() {
         std::string filename = "demo_";
         filename.append(demo.name);
         filename.append(".wav");
-        Wave_Writer wav(SAMPLERATE, filename.c_str());
-        wav.enable_stereo();
+        std::ofstream stream(filename, std::ios::out | std::ios::binary);
+        Wav wav(stream, 2, SAMPLERATE);
+        wav.begin();
 
         apu.reset();
         apu.clearSamples();
@@ -313,16 +315,18 @@ int main() {
                     apu.endFrame();
                     size_t samples = apu.availableSamples();
                     apu.readSamples(frameBuf.get(), samples);
-                    wav.write(frameBuf.get(), samples * 2);
+                    wav.write(frameBuf.get(), samples);
 
                     cycles = 0;
                 }
                 
             } else {
-                cycles += 3;
+                cycles += 12;
                 apu.writeRegister(static_cast<Apu::Reg>(cmd.reg), cmd.value);
             }
         }
+
+        wav.finish();
     }
 
     std::cout << "Time elapsed: "
