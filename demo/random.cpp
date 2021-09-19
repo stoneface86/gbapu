@@ -2,7 +2,6 @@
 #include "Wav.hpp"
 
 #include <cstdlib>
-#include <fstream>
 
 constexpr unsigned SAMPLERATE = 48000;
 constexpr double CYCLES_PER_SAMPLE = 4194304.0 / SAMPLERATE;
@@ -16,9 +15,7 @@ constexpr size_t FRAMES = 60 * 4;
 int main() {
 
     Apu apu(SAMPLERATE, SAMPLERATE / 10);
-    std::ofstream stream("random.wav", std::ios::out | std::ios::binary);
-    Wav wav(stream, 2, SAMPLERATE);
-    wav.begin();
+    Wav wav("random.wav", 2, SAMPLERATE);
 
     constexpr size_t samplesPerFrame = (CYCLES_PER_FRAME / CYCLES_PER_SAMPLE) + 1;
     auto frameBuf = std::make_unique<float[]>(samplesPerFrame * 2);
@@ -50,8 +47,6 @@ int main() {
         apu.readSamples(frameBuf.get(), samples);
         wav.write(frameBuf.get(), samples);
     }
-
-    wav.finish();
 
     return 0;
 }

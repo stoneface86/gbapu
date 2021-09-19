@@ -5,7 +5,6 @@
 #include <chrono>
 #include <string>
 #include <iostream>
-#include <fstream>
 
 constexpr unsigned SAMPLERATE = 48000;
 constexpr double CYCLES_PER_SAMPLE = 4194304.0 / SAMPLERATE;
@@ -273,12 +272,11 @@ int main() {
     //apu.setVolume(0.6f);
 
     constexpr size_t samplesPerFrame = (CYCLES_PER_FRAME / CYCLES_PER_SAMPLE) + 1;
-    std::unique_ptr<float[]> frameBuf = std::make_unique<float[]>(samplesPerFrame * 2);
+    auto frameBuf = std::make_unique<float[]>(samplesPerFrame * 2);
 
     //auto timeStart = std::chrono::steady_clock::now();
 
     Clock::duration minTime(Clock::duration::max()), maxTime(0);
-    Clock::duration avgTime(0);
     Clock::duration elapsed(0);
     size_t frameCounter = 0;
 
@@ -289,8 +287,7 @@ int main() {
         filename.append(demo.name);
         filename.append(".wav");
         std::ofstream stream(filename, std::ios::out | std::ios::binary);
-        Wav wav(stream, 2, SAMPLERATE);
-        wav.begin();
+        Wav wav(filename, 2, SAMPLERATE);
 
         apu.reset();
         apu.clearSamples();
@@ -325,8 +322,6 @@ int main() {
                 apu.writeRegister(static_cast<Apu::Reg>(cmd.reg), cmd.value);
             }
         }
-
-        wav.finish();
     }
 
     std::cout << "Time elapsed: "
