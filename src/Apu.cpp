@@ -5,13 +5,11 @@
 
 namespace gbapu {
 
-Apu::Apu(unsigned samplerate, size_t buffersizeInSamples, Model model) :
-    mModel(model),
+Apu::Apu(unsigned samplerate, size_t buffersizeInSamples) :
     mMixer(),
     mPannings{ _internal::MixMode::mute },
     mCf(),
     mSequencer(mCf),
-    mRegs{ 0 },
     mCycletime(0),
     mLeftVolume(1),
     mRightVolume(1),
@@ -24,14 +22,8 @@ Apu::Apu(unsigned samplerate, size_t buffersizeInSamples, Model model) :
     mMixer.setSamplerate(samplerate);
 }
 
-Apu::~Apu() = default;
-
-Registers const& Apu::registers() const {
-    return mRegs;
-}
-
 void Apu::reset() noexcept {
-    endFrame();
+    mCycletime = 0;
     mMixer.clear();
 
     mSequencer.reset();
@@ -46,14 +38,8 @@ void Apu::reset() noexcept {
     for (auto &panning : mPannings) {
         panning = _internal::modeSetPanning(panning, 0);
     }
-    mRegs.byArray.fill(0);
 
     updateVolume();
-}
-
-void Apu::reset(Model model) noexcept {
-    mModel = model;
-    reset();
 }
 
 uint8_t Apu::readRegister(uint8_t reg, uint32_t autostep) {
@@ -135,7 +121,7 @@ uint8_t Apu::readRegister(uint8_t reg, uint32_t autostep) {
             // Not implemented: Vin, always read back as 0
             return ((mLeftVolume - 1) << 4) | (mRightVolume - 1);
         case REG_NR51:
-            return mRegs.byName.nr51;
+            return mNr51;
         case REG_NR52:
         {
             uint8_t nr52 = mEnabled ? 0xF0 : 0x70;
@@ -170,7 +156,7 @@ uint8_t Apu::readRegister(uint8_t reg, uint32_t autostep) {
         case REG_WAVERAM + 13:
         case REG_WAVERAM + 14:
         case REG_WAVERAM + 15:
-            if (mModel == Model::cgb || !mCf.ch3.dacOn()) {
+            if (!mCf.ch3.dacOn()) {
                 auto waveram = mCf.ch3.waveram();
                 return waveram[reg - REG_WAVERAM];
             }
@@ -193,77 +179,59 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
     switch (reg) {
         case REG_NR10:
             mCf.ch1.writeSweep(value);
-            mRegs.byName.nr10 = value & 0x7F;
             break;
         case REG_NR11:
             mCf.ch1.writeDuty(value >> 6);
             mCf.ch1.writeLengthCounter(value & 0x3F);
-            mRegs.byName.nr11 = value;
             break;
         case REG_NR12:
             mCf.ch1.writeEnvelope(value);
-            mRegs.byName.nr12 = value;
             break;
         case REG_NR13:
             mCf.ch1.writeFrequencyLsb(value);
-            mRegs.byName.nr13 = value;
             break;
         case REG_NR14:
             mCf.ch1.writeFrequencyMsb(value);
-            mRegs.byName.nr14 = value & 0xC7;
             break;
         case REG_NR21:
             mCf.ch2.writeDuty(value >> 6);
             mCf.ch2.writeLengthCounter(value & 0x3F);
-            mRegs.byName.nr21 = value;
             break;
         case REG_NR22:
             mCf.ch2.writeEnvelope(value);
-            mRegs.byName.nr22 = value;
             break;
         case REG_NR23:
             mCf.ch2.writeFrequencyLsb(value);
-            mRegs.byName.nr23 = value;
             break;
         case REG_NR24:
             mCf.ch2.writeFrequencyMsb(value);
-            mRegs.byName.nr24 = value & 0xC7;
             break;
         case REG_NR30:
             mCf.ch3.setDacEnable(!!(value & 0x80));
-            mRegs.byName.nr30 = value & 0x80;
             break;
         case REG_NR31:
             mCf.ch3.writeLengthCounter(value);
-            mRegs.byName.nr31 = value;
             break;
         case REG_NR32:
             mCf.ch3.writeVolume(value);
-            mRegs.byName.nr32 = value & 0x60;
             break;
         case REG_NR33:
             mCf.ch3.writeFrequencyLsb(value);
-            mRegs.byName.nr33 = value;
             break;
         case REG_NR34:
             mCf.ch3.writeFrequencyMsb(value);
-            mRegs.byName.nr34 = value & 0xC7;
             break;
         case REG_NR41:
             mCf.ch4.writeLengthCounter(value & 0x3F);
-            mRegs.byName.nr41 = value & 0x3F;
             break;
         case REG_NR42:
             mCf.ch4.writeEnvelope(value);
-            mRegs.byName.nr42 = value;
             break;
         case REG_NR43:
             mCf.ch4.writeFrequencyLsb(value);
-            mRegs.byName.nr43 = value;
             break;
         case REG_NR44:
             mCf.ch4.writeFrequencyMsb(value);
-            mRegs.byName.nr44 = value & 0xC0;
             break;
         case REG_NR50: {
             // do nothing with the Vin bits
@@ -300,13 +268,10 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
 
                 mMixer.mixDc(dcLeft, dcRight, mCycletime);
             }
-
-
-
-            mRegs.byName.nr50 = value & 0x77;
             break;
         }
         case REG_NR51: {
+            mNr51 = value;
             auto panning = value;
             for (size_t i = 0; i != mPannings.size(); ++i) {
                 auto &currentMode = mPannings[i];
@@ -314,7 +279,6 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
                 panning >>= 1;
             }
 
-            mRegs.byName.nr51 = value;
             break;
         }
         case REG_NR52:
@@ -327,7 +291,6 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
                         writeRegister(static_cast<Reg>(i), 0, 0);
                     }
                     mEnabled = false;
-                    mRegs.byName.nr52 &= ~0x80;
                 } else {
                     // startup
                     mEnabled = true;
@@ -335,7 +298,6 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
                     //mHf.gen2.softReset();
                     //mHf.gen3.softReset();
                     mSequencer.reset();
-                    mRegs.byName.nr52 |= 0x80;
                 }
                 
             }
@@ -359,7 +321,7 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
             // if CH3's DAC is enabled, then the write goes to the current waveposition
             // this can only be done within a few clocks when CH3 accesses waveram, otherwise the write has no effect
             // this behavior was fixed for the CGB, so we can access waveram whenever
-            if (mModel == Model::cgb || !mCf.ch3.dacOn()) {
+            if (!mCf.ch3.dacOn()) {
                 auto waveram = mCf.ch3.waveram();
                 waveram[reg - REG_WAVERAM] = value;
             }

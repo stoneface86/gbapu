@@ -193,7 +193,7 @@ public:
 
 protected:
 
-    ChannelBase(uint32_t defaultPeriod, uint32_t minPeriod, unsigned lengthCounterMax) noexcept;
+    ChannelBase(uint32_t defaultPeriod, unsigned lengthCounterMax) noexcept;
 
     void disable() noexcept;
 
@@ -229,8 +229,6 @@ private:
 
     unsigned const mLengthCounterMax;
     uint32_t const mDefaultPeriod;
-    // minimum period that mixing will occur
-    uint32_t const mMinPeriod;
 
 };
 
@@ -249,7 +247,7 @@ public:
 
 
 protected:
-    EnvChannelBase(uint32_t defaultPeriod, uint32_t minPeriod, unsigned lengthCounterMax) noexcept;
+    EnvChannelBase(uint32_t defaultPeriod, unsigned lengthCounterMax) noexcept;
 
     // contents of the envelope register (NRx2)
     uint8_t mEnvelopeRegister;
@@ -295,7 +293,7 @@ private:
 
 };
 
-class SweepPulseChannel : public PulseChannel {
+class SweepPulseChannel final : public PulseChannel {
 
 public:
     SweepPulseChannel() noexcept;
@@ -329,7 +327,7 @@ private:
 
 };
 
-class WaveChannel : public ChannelBase {
+class WaveChannel final : public ChannelBase {
 
 public:
 
@@ -365,7 +363,7 @@ private:
 
 };
 
-class NoiseChannel : public EnvChannelBase {
+class NoiseChannel final : public EnvChannelBase {
 
 public:
 
@@ -448,49 +446,9 @@ private:
 
 } // gbapu::_internal
 
-union Registers {
-    struct RegisterStruct {
-        // CH1
-        uint8_t nr10; // sweep
-        uint8_t nr11; // duty + length counter
-        uint8_t nr12; // envelope
-        uint8_t nr13; // frequency low
-        uint8_t nr14; // retrigger + length enable + frequency high
-        // CH2
-        uint8_t nr20; // unused, always 0
-        uint8_t nr21; // duty + length counter
-        uint8_t nr22; // envelope
-        uint8_t nr23; // frequency low
-        uint8_t nr24; // retrigger + length enable + frequency high
-        // CH3
-        uint8_t nr30; // DAC enable
-        uint8_t nr31; // length counter
-        uint8_t nr32; // wave volume
-        uint8_t nr33; // frequency low
-        uint8_t nr34; // retrigger + length enable + frequency high
-        // CH4
-        uint8_t nr40; // unused
-        uint8_t nr41; // length counter
-        uint8_t nr42; // envelope
-        uint8_t nr43; // noise settings
-        uint8_t nr44; // retrigger + length enable
-        // Control
-        uint8_t nr50; // Vin, terminal volumes
-        uint8_t nr51; // channel terminal enables
-        uint8_t nr52; // Sound enable, ON flags
-    } byName;
-
-    std::array<uint8_t, 23> byArray;
-};
-
 class Apu {
 
 public:
-
-    enum class Model {
-        dmg,
-        cgb
-    };
 
     enum Reg {
         // CH1 - Square 1 --------------------------------------------------------
@@ -527,19 +485,10 @@ public:
 
     Apu(
         unsigned samplerate,
-        size_t buffersizeInSamples,
-        Model model = Model::dmg
+        size_t buffersizeInSamples
     );
-    ~Apu();
-
-    //
-    // Gets the current register state. This is for diagnostic purposes only,
-    // emulated programs should access registers via the readRegister methods.
-    //
-    Registers const& registers() const;
 
     void reset() noexcept;
-    void reset(Model model) noexcept;
 
     //
     // Step the emulator for a given number of cycles.
@@ -583,16 +532,13 @@ private:
 
     void updateVolume();
 
-    Model mModel;
-
     _internal::Mixer mMixer;
     std::array<_internal::MixMode, 4> mPannings;
 
+    uint8_t mNr51;
 
     _internal::ChannelFile mCf;
     _internal::Sequencer mSequencer;
-
-    Registers mRegs;
 
     uint32_t mCycletime;
 

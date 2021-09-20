@@ -6,7 +6,7 @@
 
 namespace gbapu::_internal {
 
-ChannelBase::ChannelBase(uint32_t defaultPeriod, uint32_t minPeriod, unsigned lengthCounterMax) noexcept :
+ChannelBase::ChannelBase(uint32_t defaultPeriod, unsigned lengthCounterMax) noexcept :
     Timer(defaultPeriod),
     mFrequency(0),
     mOutput(0),
@@ -17,8 +17,7 @@ ChannelBase::ChannelBase(uint32_t defaultPeriod, uint32_t minPeriod, unsigned le
     mLengthEnabled(false),
     mDisabled(true),
     mLengthCounterMax(lengthCounterMax),
-    mDefaultPeriod(defaultPeriod),
-    mMinPeriod(minPeriod)
+    mDefaultPeriod(defaultPeriod)
 {
 }
 
@@ -198,8 +197,8 @@ void ChannelBase::setLengthCounterEnable(bool enable) {
     mLengthEnabled = enable;
 }
 
-EnvChannelBase::EnvChannelBase(uint32_t defaultPeriod, uint32_t minPeriod, unsigned lengthCounterMax) noexcept :
-    ChannelBase(defaultPeriod, minPeriod, lengthCounterMax),
+EnvChannelBase::EnvChannelBase(uint32_t defaultPeriod, unsigned lengthCounterMax) noexcept :
+    ChannelBase(defaultPeriod, lengthCounterMax),
     mEnvelopeRegister(0),
     mEnvelopeCounter(0),
     mEnvelopePeriod(0),

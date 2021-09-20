@@ -6,7 +6,7 @@ constexpr uint16_t LFSR_INIT = 0x7FFF;
 namespace gbapu::_internal {
 
 NoiseChannel::NoiseChannel() noexcept :
-    EnvChannelBase(8, 8, 64),
+    EnvChannelBase(8, 64),
     mValidScf(true),
     mHalfWidth(false),
     mLfsr(LFSR_INIT)

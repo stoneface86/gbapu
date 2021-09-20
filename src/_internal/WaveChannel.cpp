@@ -16,19 +16,14 @@ static constexpr unsigned WAVE_MULTIPLIER = 2;
 static constexpr uint32_t DEFAULT_PERIOD = (2048 - 0) * WAVE_MULTIPLIER;
 
 // frequency = 2045 is about 21845 Hz for a single period waveram
-constexpr uint32_t MIN_PERIOD = (2048 - 2045) * WAVE_MULTIPLIER;
-
-// Obscure behavior on the DMG - this is the number of cycles after the channel is
-// clocked by the frequency timer that we can access waveram while the channel is enabled
-// note that this threshold is a guess - further research is needed to find the limit
-static constexpr int RAM_ACCESS_THRESHOLD = 4;
+//constexpr uint32_t MIN_PERIOD = (2048 - 2045) * WAVE_MULTIPLIER;
 
 }
 
 namespace gbapu::_internal {
 
 WaveChannel::WaveChannel() noexcept :
-    ChannelBase(DEFAULT_PERIOD, MIN_PERIOD, 0),
+    ChannelBase(DEFAULT_PERIOD, 0),
     mVolumeShift(0),
     mWaveIndex(0),
     mSampleBuffer(0),
