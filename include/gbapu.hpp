@@ -202,8 +202,8 @@ private:
     template <MixMode mode>
     void stepImpl(Mixer &mixer, uint32_t cycletime, uint32_t cycles);
 
-    // previous PCM value
-    int8_t mLastOutput;
+    int8_t mLastOutput; // last output sent to the mixer
+    MixMode mLastMix; // previous mode used in step
     
 
     unsigned mLengthCounter;

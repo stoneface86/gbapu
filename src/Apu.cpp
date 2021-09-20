@@ -287,7 +287,7 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
             std::array<_internal::ChannelBase*, 4> channels = { &mCf.ch1, &mCf.ch2, &mCf.ch3, &mCf.ch4 };
             for (size_t i = 0; i != mPannings.size(); ++i) {
                 auto mode = mPannings[i];
-                auto output = channels[i]->lastOutput();
+                auto output = channels[i]->lastOutput() * 2 - 15;
 
                 float dcLeft = 0.0f;
                 float dcRight = 0.0f;
@@ -307,31 +307,11 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
             break;
         }
         case REG_NR51: {
-
-            auto changes = mRegs.byName.nr51 ^ value;
             auto panning = value;
-            //std::array<_internal::ChannelBase*, 4> channels = { &mCf.ch1, &mCf.ch2, &mCf.ch3, &mCf.ch4 };
             for (size_t i = 0; i != mPannings.size(); ++i) {
-                auto currentMode = mPannings[i];
-//                auto dacOutput = channels[i]->lastOutput();
-//                if (!!(changes & 0x10)) {
-//                    // the left terminal output status changed, determine amplitude
-//                    auto ampl = (int16_t)((dacOutput * mMixer.leftVolume() + mMixer.dcLeft() + 0x8000) >> 16);
-//                    // if the new value is ON, go to this amplitude, otherwise drop down to 0
-//                    mMixer.addDelta(0, mCycletime, !!(panning & 0x10) ? ampl : -ampl);
-
-//                }
-
-//                if (!!(changes & 0x01)) {
-//                    // same as above but for the right terminal
-//                    auto ampl = (int16_t)((dacOutput * mMixer.rightVolume() + mMixer.dcRight() + 0x8000) >> 16);
-//                    mMixer.addDelta(1, mCycletime, !!(panning & 0x01) ? ampl : -ampl);
-
-//                }
-
-                mPannings[i] = _internal::modeSetPanning(currentMode, panning & 0x11);
+                auto &currentMode = mPannings[i];
+                currentMode = _internal::modeSetPanning(currentMode, panning & 0x11);
                 panning >>= 1;
-                changes >>= 1;
             }
 
             mRegs.byName.nr51 = value;
@@ -344,7 +324,7 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
                     // shutdown
                     // zero out all registers
                     for (uint8_t i = REG_NR10; i != REG_NR52; ++i) {
-                        writeRegister(static_cast<Reg>(i), 0);
+                        writeRegister(static_cast<Reg>(i), 0, 0);
                     }
                     mEnabled = false;
                     mRegs.byName.nr52 &= ~0x80;

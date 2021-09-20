@@ -243,6 +243,37 @@ static DemoCommand const DEMO_POPS[] = {
 
 };
 
+static DemoCommand const DEMO_LENGTH_COUNTER[] = {
+    {Apu::REG_NR52, 0x80}, {Apu::REG_NR50, 0x77}, {Apu::REG_NR51, 0x11},
+    {Apu::REG_NR11, 0x10},
+    {Apu::REG_NR12, 0x80},
+    {Apu::REG_NR14, 0xC3}, {HOLD, 30},
+    {Apu::REG_NR14, 0xC2}, {HOLD, 30}
+};
+
+static DemoCommand const DEMO_HIGH_FREQUENCY[] = {
+    {Apu::REG_NR52, 0x80}, {Apu::REG_NR50, 0x77}, {Apu::REG_NR51, 0x11},
+    {Apu::REG_NR11, 0x80},
+    {Apu::REG_NR12, 0xF0},
+    {Apu::REG_NR13, 0xE0},
+    {Apu::REG_NR14, 0x87}, {HOLD, 10}, // 4096
+    {Apu::REG_NR13, 0xE4}, {HOLD, 10}, // 4681
+    {Apu::REG_NR13, 0xE8}, {HOLD, 10}, // 5461
+    {Apu::REG_NR13, 0xEC}, {HOLD, 10}, // 6553
+    {Apu::REG_NR13, 0xF0}, {HOLD, 10}, // 8192
+    {Apu::REG_NR13, 0xF4}, {HOLD, 10}, // 10922
+    {Apu::REG_NR13, 0xF8}, {HOLD, 10}, // 16384
+    {Apu::REG_NR13, 0xF9}, {HOLD, 10}, // 18724
+    {Apu::REG_NR13, 0xFA}, {HOLD, 10}, // 21845
+    {Apu::REG_NR13, 0xFB}, {HOLD, 10}, // 26214
+    {Apu::REG_NR13, 0xFC}, {HOLD, 10}, // 32768
+    {Apu::REG_NR13, 0xF8}, {HOLD, 10}, //
+    {Apu::REG_NR13, 0xF9}, {HOLD, 10}, //
+    {Apu::REG_NR13, 0xF8}, {HOLD, 10}, //
+    {Apu::REG_NR13, 0xF7}, {HOLD, 10},
+    {Apu::REG_NR13, 0xF6}, {HOLD, 10}
+};
+
 struct Demo {
     const char *name;
     DemoCommand const *sequence;
@@ -259,7 +290,9 @@ static Demo const DEMO_TABLE[] = {
     demoStruct("headroom", DEMO_HEADROOM),
     demoStruct("envelope", DEMO_ENVELOPE),
     demoStruct("panning", DEMO_PANNING),
-    demoStruct("pops", DEMO_POPS)
+    demoStruct("pops", DEMO_POPS),
+    demoStruct("length_counter", DEMO_LENGTH_COUNTER),
+    demoStruct("high_frequency", DEMO_HIGH_FREQUENCY)
 };
 
 constexpr size_t DEMO_COUNT = sizeof(DEMO_TABLE) / sizeof(Demo);
@@ -286,7 +319,6 @@ int main() {
         std::string filename = "demo_";
         filename.append(demo.name);
         filename.append(".wav");
-        std::ofstream stream(filename, std::ios::out | std::ios::binary);
         Wav wav(filename, 2, SAMPLERATE);
 
         apu.reset();

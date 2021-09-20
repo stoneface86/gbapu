@@ -1,8 +1,8 @@
 
 #include "gbapu.hpp"
 
-
 #include <cassert>
+
 
 namespace gbapu::_internal {
 
@@ -10,8 +10,9 @@ ChannelBase::ChannelBase(uint32_t defaultPeriod, uint32_t minPeriod, unsigned le
     Timer(defaultPeriod),
     mFrequency(0),
     mOutput(0),
-    mLastOutput(0),
     mDacOn(false),
+    mLastOutput(0),
+    mLastMix(MixMode::mute),
     mLengthCounter(0),
     mLengthEnabled(false),
     mDisabled(true),
@@ -58,22 +59,57 @@ void ChannelBase::stepLengthCounter() noexcept {
     }
 }
 
+
 void ChannelBase::step(Mixer &mixer, MixMode mode, uint32_t cycletime, uint32_t cycles) {
+    // Channel output notes:
+    // output range is -15 to 15 volume units. (DAC input of 0 is -15, F is +15)
+
+    // lambda adds a transition to 0 if needed
+    auto toZero = [&]() {
+        if (mLastOutput) {
+            mixer.mix(mode, -mLastOutput * 2, cycletime);
+            mLastOutput = 0;
+        }
+    };
+
+    if (mLastMix != mode) {
+
+        // the channel's panning has changed,
+        // add/remove DC offsets
+        auto changes = +mLastMix ^ +mode;
+
+        float dcLeft = 0.0f;
+        float dcRight = 0.0f;
+        auto const level = (15 - mLastOutput * 2);
+        if (changes & MIX_LEFT) {
+            dcLeft = mixer.leftVolume() * level;
+            if (+mode & MIX_LEFT) {
+                dcLeft = -dcLeft;
+            }
+        }
+
+        if (changes & MIX_RIGHT) {
+            dcRight = mixer.rightVolume() * level;
+            if (+mode & MIX_RIGHT) {
+                dcRight = -dcRight;
+            }
+        }
+
+        mixer.mixDc(dcLeft, dcRight, cycletime);
+
+        mLastMix = mode;
+    }
+
+
     if (mDacOn) {
         if (mDisabled) {
-            // when disabled the DAC gets an input of 0
-            if (mLastOutput) {
-                //
-                mixer.mix(mode, -mLastOutput, cycletime);
-            }
-            stepImpl<MixMode::mute>(mixer, cycletime, cycles);
-            mOutput = 0;
-            mLastOutput = 0;
-        } else if (mPeriod < mMinPeriod) {
-            // channel is disabled or is too high of a frequency, don't bother mixing
-            // no need to a transition to 0, the high pass filter will do so eventually
-            stepImpl<MixMode::mute>(mixer, cycletime, cycles);
-            
+            toZero();
+            // does the generation circuit still run when disabled?
+            // or does the DAC just get an input of 0?
+            // assuming the former.
+
+            // uncomment for the latter
+            // stepImpl<MixMode::mute>(mixer, cycletime, cycles);
         } else {
 
             switch (mode) {
@@ -93,16 +129,17 @@ void ChannelBase::step(Mixer &mixer, MixMode mode, uint32_t cycletime, uint32_t 
                     break;
             }
         }
+    } else {
+        toZero();
     }
 }
 
-// NOTE: highQualityMute and lowQualityMute are the same function! only use lowQualityMute
 template <MixMode mode>
 void ChannelBase::stepImpl(Mixer &mixer, uint32_t cycletime, uint32_t cycles) {
     while (cycles) {
         if constexpr (mode != MixMode::mute) {
             if (mLastOutput != mOutput) {
-                mixer.mixfast<mode>(mOutput - mLastOutput, cycletime);
+                mixer.mixfast<mode>((mOutput - mLastOutput) * 2, cycletime);
                 mLastOutput = mOutput;
             }
         }
@@ -112,11 +149,6 @@ void ChannelBase::stepImpl(Mixer &mixer, uint32_t cycletime, uint32_t cycles) {
         }
         cycles -= toStep;
         cycletime += toStep;
-    }
-
-    if constexpr (mode == MixMode::mute) {
-        // kept out of the loop for speed
-        mLastOutput = mOutput;
     }
     
 }
@@ -151,6 +183,7 @@ void ChannelBase::reset() noexcept {
     
     //mLastDacOutput = -15;
     mLastOutput = 0;
+    mLastMix = MixMode::mute;
 }
 
 void ChannelBase::restart() noexcept {
