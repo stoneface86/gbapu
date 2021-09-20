@@ -100,19 +100,36 @@ private:
 
     };
 
+    //
+    // Sample accumulator, used for integrating + high pass filtering
+    // the sample buffer.
+    //
+    struct Accum {
+        float sum = 0.0f;
+        float highpass = 0.0f;
+
+        void process(float *dest, float in, float highPassRate);
+
+        void reset();
+    };
+
     MixParam getMixParameters(uint32_t cycletime);
+
+    void calculateHighpass();
+    void calculateFactor();
 
     float mVolumeStepLeft;
     float mVolumeStepRight;
 
-    float mFactor;
+    unsigned mSamplerate;
+    float mFactor;                      // samples per cycle (multiply cycletime by this to get sampletime)
 
-    std::unique_ptr<float[]> mBuffer;
-    size_t mBuffersize;
-    float mSumLeft;
-    float mSumRight;
-    float mSampleOffset;
-    size_t mWriteIndex;
+    std::unique_ptr<float[]> mBuffer;   // sample buffer
+    size_t mBuffersize;                 // total size of the buffer
+    std::array<Accum, 2> mAccumulators; // running sum state for each terminal
+    float mSampleOffset;                // fractional carry-over from previous frame
+    size_t mWriteIndex;                 // index to start mixing samples (samples before this index can be read)
+    float mHighpassRate;                // rate of the highpass filter
 
 
 };
@@ -568,10 +585,6 @@ private:
 
     Model mModel;
 
-    /*_internal::Mixer mMixer1;
-    _internal::Mixer mMixer2;
-    _internal::Mixer mMixer3;
-    _internal::Mixer mMixer4;*/
     _internal::Mixer mMixer;
     std::array<_internal::MixMode, 4> mPannings;
 

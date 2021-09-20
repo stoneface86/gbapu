@@ -54,14 +54,18 @@ static float const STEP_TABLE[PHASES][STEP_WIDTH] = {
 Mixer::Mixer() :
     mVolumeStepLeft(0.0f),
     mVolumeStepRight(0.0f),
+    mSamplerate(44100),
     mFactor(0.0f),
     mBuffer(),
     mBuffersize(0),
-    mSumLeft(0.0f),
-    mSumRight(0.0f),
+    mAccumulators(),
     mSampleOffset(0.0f),
-    mWriteIndex(0)
+    mWriteIndex(0),
+    mHighpassRate(0.0f)
+
 {
+    calculateFactor();
+    calculateHighpass();
 }
 
 
@@ -174,14 +178,19 @@ void Mixer::setBuffer(size_t samples) {
 }
 
 void Mixer::setSamplerate(unsigned rate) {
-    mFactor = rate / constants::CLOCK_SPEED<float>;
+    if (mSamplerate != rate) {
+        mSamplerate = rate;
+        calculateFactor();
+        calculateHighpass(); // highpass rate dependent on mFactor
+    }
 }
 
 void Mixer::clear() {
     mSampleOffset = 0.0f;
     mWriteIndex = 0;
-    mSumLeft = 0.0f;
-    mSumRight = 0.0f;
+    for (auto &accum : mAccumulators) {
+        accum.reset();
+    }
     std::fill_n(mBuffer.get(), mBuffersize, 0.0f);
 }
 
@@ -195,20 +204,26 @@ size_t Mixer::availableSamples() const noexcept {
     return mWriteIndex;
 }
 
+void Mixer::Accum::reset() {
+    sum = highpass = 0.0f;
+}
+
+void Mixer::Accum::process(float *dest, float in, float highPassRate) {
+    sum += in;
+    in = sum - highpass;
+    highpass = sum - (in * highPassRate);
+    *dest = in;
+}
+
+
 size_t Mixer::readSamples(float *buf, size_t samples) {
     samples = std::min(samples, mWriteIndex);
     if (samples) {
 
         float const* in = mBuffer.get();
         for (size_t i = samples; i--; ) {
-            auto sample = *in++;
-            mSumLeft += sample;
-            *buf++ = mSumLeft;
-            // TODO: highpass filter
-
-            sample = *in++;
-            mSumRight += sample;
-            *buf++ = mSumRight;
+            mAccumulators[0].process(buf++, *in++, mHighpassRate);
+            mAccumulators[1].process(buf++, *in++, mHighpassRate);
         }
         removeSamples(samples);
     }
@@ -221,6 +236,16 @@ void Mixer::removeSamples(size_t samples) {
     std::copy(mBuffer.get() + amountInFrames, mBuffer.get() + mBuffersize, mBuffer.get());
     std::fill_n(mBuffer.get() + (mBuffersize - amountInFrames), amountInFrames, 0.0f);
     mWriteIndex -= samples;
+}
+
+
+void Mixer::calculateFactor() {
+    mFactor = mSamplerate / constants::CLOCK_SPEED<float>;
+}
+
+void Mixer::calculateHighpass() {
+    // using SameBoy's HPF (GB_HIGHPASS_ACCURATE)
+    mHighpassRate = powf(0.999958f, 1.0f / mFactor);
 }
 
 

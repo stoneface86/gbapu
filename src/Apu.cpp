@@ -287,7 +287,7 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
             std::array<_internal::ChannelBase*, 4> channels = { &mCf.ch1, &mCf.ch2, &mCf.ch3, &mCf.ch4 };
             for (size_t i = 0; i != mPannings.size(); ++i) {
                 auto mode = mPannings[i];
-                auto output = channels[i]->lastOutput() * 2 - 15;
+                auto output = 7.5f - channels[i]->lastOutput();
 
                 float dcLeft = 0.0f;
                 float dcRight = 0.0f;

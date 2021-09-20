@@ -62,12 +62,13 @@ void ChannelBase::stepLengthCounter() noexcept {
 
 void ChannelBase::step(Mixer &mixer, MixMode mode, uint32_t cycletime, uint32_t cycles) {
     // Channel output notes:
-    // output range is -15 to 15 volume units. (DAC input of 0 is -15, F is +15)
+    // -7.5 to 7.5 volume units (DAC input of 0 is 7.5, F is -7.5)
+    // DC offset for each channel is 7.5 * the volume step
 
     // lambda adds a transition to 0 if needed
     auto toZero = [&]() {
         if (mLastOutput) {
-            mixer.mix(mode, -mLastOutput * 2, cycletime);
+            mixer.mix(mode, -mLastOutput, cycletime);
             mLastOutput = 0;
         }
     };
@@ -80,7 +81,7 @@ void ChannelBase::step(Mixer &mixer, MixMode mode, uint32_t cycletime, uint32_t 
 
         float dcLeft = 0.0f;
         float dcRight = 0.0f;
-        auto const level = (15 - mLastOutput * 2);
+        auto const level = (mLastOutput - 7.5f);
         if (changes & MIX_LEFT) {
             dcLeft = mixer.leftVolume() * level;
             if (+mode & MIX_LEFT) {
@@ -139,7 +140,7 @@ void ChannelBase::stepImpl(Mixer &mixer, uint32_t cycletime, uint32_t cycles) {
     while (cycles) {
         if constexpr (mode != MixMode::mute) {
             if (mLastOutput != mOutput) {
-                mixer.mixfast<mode>((mOutput - mLastOutput) * 2, cycletime);
+                mixer.mixfast<mode>(-(mOutput - mLastOutput), cycletime);
                 mLastOutput = mOutput;
             }
         }
@@ -180,8 +181,7 @@ void ChannelBase::reset() noexcept {
     mLengthEnabled = false;
     mPeriod = mDefaultPeriod;
     mTimer = mPeriod;
-    
-    //mLastDacOutput = -15;
+
     mLastOutput = 0;
     mLastMix = MixMode::mute;
 }
