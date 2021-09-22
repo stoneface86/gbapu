@@ -11,14 +11,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(GBAPU_SRC
-    "src/_internal/Channel.cpp"
-    "src/_internal/Mixer.cpp"
-    "src/_internal/NoiseChannel.cpp"
-    "src/_internal/PulseChannel.cpp"
-    "src/_internal/Sequencer.cpp"
-    "src/_internal/SweepPulseChannel.cpp"
-    "src/_internal/Timer.cpp"
-    "src/_internal/WaveChannel.cpp"
+    "src/_internal.cpp"
     "src/Apu.cpp"
  )
 

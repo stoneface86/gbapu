@@ -7,9 +7,7 @@ namespace gbapu {
 
 Apu::Apu(unsigned samplerate, size_t buffersizeInSamples) :
     mMixer(),
-    mPannings{ _internal::MixMode::mute },
-    mCf(),
-    mSequencer(mCf),
+    mHardware(),
     mCycletime(0),
     mLeftVolume(1),
     mRightVolume(1),
@@ -26,18 +24,11 @@ void Apu::reset() noexcept {
     mCycletime = 0;
     mMixer.clear();
 
-    mSequencer.reset();
-    mCf.ch1.reset();
-    mCf.ch2.reset();
-    mCf.ch3.reset();
-    mCf.ch4.reset();
+    mHardware.reset();
+
     mLeftVolume = 1;
     mRightVolume = 1;
     mEnabled = false;
-
-    for (auto &panning : mPannings) {
-        panning = _internal::modeSetPanning(panning, 0);
-    }
 
     updateVolume();
 }
@@ -70,50 +61,50 @@ uint8_t Apu::readRegister(uint8_t reg, uint32_t autostep) {
         // ===== CH1 =====
 
         case REG_NR10:
-            return mCf.ch1.readSweep();
+            return mHardware.sweep().readRegister();
         case REG_NR11:
-            return 0x3F | mCf.ch1.readDuty();
+            return 0x3F | (mHardware.channel<0>().duty() << 6);
         case REG_NR12:
-            return mCf.ch1.readEnvelope();
+            return mHardware.envelope<0>().readRegister();
         case REG_NR13:
             return 0xFF;
         case REG_NR14:
-            return mCf.ch1.lengthEnabled() ? 0xFF : 0xBF;
+            return mHardware.lengthCounter<0>().isEnabled() ? 0xFF : 0xBF;
         
         // ===== CH2 =====
 
         case REG_NR21:
-            return 0x3F | mCf.ch2.readDuty();
+            return 0x3F | (mHardware.channel<1>().duty() << 6);
         case REG_NR22:
-            return mCf.ch2.readEnvelope();
+            return mHardware.envelope<1>().readRegister();
         case REG_NR23:
             return 0xFF;
         case REG_NR24:
-            return mCf.ch2.lengthEnabled() ? 0xFF : 0xBF;
+            return mHardware.lengthCounter<1>().isEnabled() ? 0xFF : 0xBF;
 
         // ===== CH3 =====
 
         case REG_NR30:
-            return mCf.ch3.dacOn() ? 0xFF : 0x7F;
+            return mHardware.channel<2>().isDacOn() ? 0xFF : 0x7F;
         case REG_NR31:
             return 0xFF;
         case REG_NR32:
-            return 0x9F | mCf.ch3.readVolume();
+            return 0x9F | (mHardware.channel<2>().volume() << 5);
         case REG_NR33:
             return 0xFF;
         case REG_NR34:
-            return mCf.ch3.lengthEnabled() ? 0xFF : 0xBF;
+            return mHardware.lengthCounter<2>().isEnabled() ? 0xFF : 0xBF;
 
         // ===== CH4 =====
 
         case REG_NR41:
             return 0xFF;
         case REG_NR42:
-            return mCf.ch4.readEnvelope();
+            return mHardware.envelope<3>().readRegister();
         case REG_NR43:
-            return mCf.ch4.readNoise();
+            return mHardware.channel<3>().frequency() & 0xFF;
         case REG_NR44:
-            return mCf.ch4.lengthEnabled() ? 0xFF : 0xBF;
+            return mHardware.lengthCounter<3>().isEnabled() ? 0xFF : 0xBF;
 
        // ===== Sound control ======
 
@@ -125,16 +116,16 @@ uint8_t Apu::readRegister(uint8_t reg, uint32_t autostep) {
         case REG_NR52:
         {
             uint8_t nr52 = mEnabled ? 0xF0 : 0x70;
-            if (mCf.ch1.dacOn()) {
+            if (mHardware.channel<0>().isDacOn()) {
                 nr52 |= 0x1;
             }
-            if (mCf.ch2.dacOn()) {
+            if (mHardware.channel<1>().isDacOn()) {
                 nr52 |= 0x2;
             }
-            if (mCf.ch3.dacOn()) {
+            if (mHardware.channel<2>().isDacOn()) {
                 nr52 |= 0x4;
             }
-            if (mCf.ch4.dacOn()) {
+            if (mHardware.channel<3>().isDacOn()) {
                 nr52 |= 0x8;
             }
             return nr52;
@@ -156,9 +147,8 @@ uint8_t Apu::readRegister(uint8_t reg, uint32_t autostep) {
         case REG_WAVERAM + 13:
         case REG_WAVERAM + 14:
         case REG_WAVERAM + 15:
-            if (!mCf.ch3.dacOn()) {
-                auto waveram = mCf.ch3.waveram();
-                return waveram[reg - REG_WAVERAM];
+            if (auto &ch = mHardware.channel<2>(); !ch.isDacOn()) {
+                return ch.waveram()[reg - REG_WAVERAM];
             }
             return 0xFF;
         default:
@@ -178,60 +168,60 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
 
     switch (reg) {
         case REG_NR10:
-            mCf.ch1.writeSweep(value);
+            mHardware.sweep().writeRegister(value);
             break;
         case REG_NR11:
-            mCf.ch1.writeDuty(value >> 6);
-            mCf.ch1.writeLengthCounter(value & 0x3F);
+            mHardware.channel<0>().setDuty(value >> 6);
+            mHardware.lengthCounter<0>().setCounter(value & 0x3F);
             break;
         case REG_NR12:
-            mCf.ch1.writeEnvelope(value);
+            mHardware.writeEnvelope<0>(value);
             break;
         case REG_NR13:
-            mCf.ch1.writeFrequencyLsb(value);
+            mHardware.writeFrequencyLsb<0>(value);
             break;
         case REG_NR14:
-            mCf.ch1.writeFrequencyMsb(value);
+            mHardware.writeFrequencyMsb<0>(value);
             break;
         case REG_NR21:
-            mCf.ch2.writeDuty(value >> 6);
-            mCf.ch2.writeLengthCounter(value & 0x3F);
+            mHardware.channel<1>().setDuty(value >> 6);
+            mHardware.lengthCounter<1>().setCounter(value & 0x3F);
             break;
         case REG_NR22:
-            mCf.ch2.writeEnvelope(value);
+            mHardware.writeEnvelope<1>(value);
             break;
         case REG_NR23:
-            mCf.ch2.writeFrequencyLsb(value);
+            mHardware.writeFrequencyLsb<1>(value);
             break;
         case REG_NR24:
-            mCf.ch2.writeFrequencyMsb(value);
+            mHardware.writeFrequencyMsb<1>(value);
             break;
         case REG_NR30:
-            mCf.ch3.setDacEnable(!!(value & 0x80));
+            mHardware.channel<2>().setDacEnabled(!!(value & 0x80));
             break;
         case REG_NR31:
-            mCf.ch3.writeLengthCounter(value);
+            mHardware.lengthCounter<2>().setCounter(value);
             break;
         case REG_NR32:
-            mCf.ch3.writeVolume(value);
+            mHardware.channel<2>().setVolume((value >> 5) & 0x3);
             break;
         case REG_NR33:
-            mCf.ch3.writeFrequencyLsb(value);
+            mHardware.writeFrequencyLsb<2>(value);
             break;
         case REG_NR34:
-            mCf.ch3.writeFrequencyMsb(value);
+            mHardware.writeFrequencyMsb<2>(value);
             break;
         case REG_NR41:
-            mCf.ch4.writeLengthCounter(value & 0x3F);
+            mHardware.lengthCounter<3>().setCounter(value & 0x3F);
             break;
         case REG_NR42:
-            mCf.ch4.writeEnvelope(value);
+            mHardware.writeEnvelope<3>(value);
             break;
         case REG_NR43:
-            mCf.ch4.writeFrequencyLsb(value);
+            mHardware.writeFrequencyLsb<3>(value);
             break;
         case REG_NR44:
-            mCf.ch4.writeFrequencyMsb(value);
+            mHardware.writeFrequencyMsb<3>(value);
             break;
         case REG_NR50: {
             // do nothing with the Vin bits
@@ -240,6 +230,7 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
             mRightVolume = (value & 0x7) + 1;
 
             // a change in volume will require a transition to the new volume step
+            // this transition is done by modifying the DC offset
 
             auto oldVolumeLeft = mMixer.leftVolume();
             auto oldVolumeRight = mMixer.rightVolume();
@@ -251,33 +242,48 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
             auto leftVolDiff = mMixer.leftVolume() - oldVolumeLeft;
             auto rightVolDiff = mMixer.rightVolume() - oldVolumeRight;
 
+            float dcLeft = 0.0f;
+            float dcRight = 0.0f;
 
-            std::array<_internal::ChannelBase*, 4> channels = { &mCf.ch1, &mCf.ch2, &mCf.ch3, &mCf.ch4 };
-            for (size_t i = 0; i != mPannings.size(); ++i) {
-                auto mode = mPannings[i];
-                auto output = 7.5f - channels[i]->lastOutput();
+            auto const& mix = mHardware.mix();
+            for (size_t i = 0; i != mix.size(); ++i) {
+                auto mode = mix[i];
+                auto output = mHardware.lastOutput(i) - 7.5f;
 
-                float dcLeft = 0.0f;
-                float dcRight = 0.0f;
                 if (_internal::modePansLeft(mode)) {
-                    dcLeft = leftVolDiff * output;
+                    dcLeft += leftVolDiff * output;
                 }
                 if (_internal::modePansRight(mode)) {
-                    dcRight = rightVolDiff * output;
+                    dcRight += rightVolDiff * output;
                 }
 
-                mMixer.mixDc(dcLeft, dcRight, mCycletime);
             }
+            mMixer.mixDc(dcLeft, dcRight, mCycletime);
             break;
         }
         case REG_NR51: {
             mNr51 = value;
             auto panning = value;
-            for (size_t i = 0; i != mPannings.size(); ++i) {
-                auto &currentMode = mPannings[i];
-                currentMode = _internal::modeSetPanning(currentMode, panning & 0x11);
+            _internal::ChannelMix mix;
+            for (size_t i = 0; i != mix.size(); ++i) {
+                switch (panning & 0x11) {
+                    case 0x00:
+                        mix[i] = _internal::MixMode::mute;
+                        break;
+                    case 0x01:
+                        mix[i] = _internal::MixMode::right;
+                        break;
+                    case 0x10:
+                        mix[i] = _internal::MixMode::left;
+                        break;
+                    case 0x11:
+                        mix[i] = _internal::MixMode::middle;
+                        break;
+                }
+
                 panning >>= 1;
             }
+            mHardware.setMix(mix, mMixer, mCycletime);
 
             break;
         }
@@ -297,7 +303,7 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
                     //mHf.gen1.softReset();
                     //mHf.gen2.softReset();
                     //mHf.gen3.softReset();
-                    mSequencer.reset();
+                    //mSequencer.reset();
                 }
                 
             }
@@ -321,9 +327,8 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
             // if CH3's DAC is enabled, then the write goes to the current waveposition
             // this can only be done within a few clocks when CH3 accesses waveram, otherwise the write has no effect
             // this behavior was fixed for the CGB, so we can access waveram whenever
-            if (!mCf.ch3.dacOn()) {
-                auto waveram = mCf.ch3.waveram();
-                waveram[reg - REG_WAVERAM] = value;
+            if (auto &ch = mHardware.channel<2>(); !ch.isDacOn()) {
+                ch.waveram()[reg - REG_WAVERAM] = value;
             }
             // ignore write if enabled
             break;
@@ -333,20 +338,22 @@ void Apu::writeRegister(uint8_t reg, uint8_t value, uint32_t autostep) {
 }
 
 void Apu::step(uint32_t cycles) {
-    while (cycles) {
+//    while (cycles) {
 
-        // step hardware components to the beat of the sequencer's period
-        uint32_t cyclesToStep = std::min(cycles, mSequencer.timer());
-        mSequencer.step(cyclesToStep);
-        mCf.ch1.step(mMixer, mPannings[0], mCycletime, cyclesToStep);
-        mCf.ch2.step(mMixer, mPannings[1], mCycletime, cyclesToStep);
-        mCf.ch3.step(mMixer, mPannings[2], mCycletime, cyclesToStep);
-        mCf.ch4.step(mMixer, mPannings[3], mCycletime, cyclesToStep);
+//        // step hardware components to the beat of the sequencer's period
+//        uint32_t cyclesToStep = std::min(cycles, mSequencer.timer());
+//        mSequencer.step(cyclesToStep);
+//        mCf.ch1.step(mMixer, mPannings[0], mCycletime, cyclesToStep);
+//        mCf.ch2.step(mMixer, mPannings[1], mCycletime, cyclesToStep);
+//        mCf.ch3.step(mMixer, mPannings[2], mCycletime, cyclesToStep);
+//        mCf.ch4.step(mMixer, mPannings[3], mCycletime, cyclesToStep);
 
-        // update cycle counters
-        cycles -= cyclesToStep;
-        mCycletime += cyclesToStep;
-    }
+//        // update cycle counters
+//        cycles -= cyclesToStep;
+//        mCycletime += cyclesToStep;
+//    }
+    mHardware.run(mMixer, mCycletime, cycles);
+    mCycletime += cycles;
 }
 
 void Apu::stepTo(uint32_t time) {

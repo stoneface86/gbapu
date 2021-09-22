@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <cstddef>
 #include <memory>
+#include <tuple>
+#include <optional>
 
 namespace gbapu {
 
@@ -48,11 +50,7 @@ constexpr bool modePansRight(MixMode mode) {
     return !!(+mode & MIX_RIGHT);
 }
 
-constexpr MixMode modeSetPanning(MixMode mode, int panning) {
-    return static_cast<MixMode>(
-        (+mode & ~(MIX_LEFT | MIX_RIGHT)) | (panning & 1) | (panning >> 3)
-        );
-}
+using ChannelMix = std::array<MixMode, 4>;
 
 class Mixer {
 
@@ -135,292 +133,266 @@ private:
 };
 
 
-//
-// Base class for all internal components in the APU.
-//
+class Hardware;
+class Envelope;
+
 class Timer {
 
 public:
+    Timer(uint32_t initPeriod);
 
-    //
-    // Returns the frequency timer, or the number of cycles needed to complete a period.
-    //
-    inline uint32_t timer() const noexcept {
-        return mTimer;
-    }
+    uint32_t counter() const noexcept;
 
-protected:
+    uint32_t period() const noexcept;
 
-    Timer(uint32_t period);
+    bool run(uint32_t cycles) noexcept;
 
-    //
-    // step the timer the given number of cycles. If the timer is now 0,
-    // true is returned and the timer is reloaded with the period
-    //
-    bool stepTimer(uint32_t cycles);
+    void restart() noexcept;
 
-    uint32_t mTimer;
+    void setPeriod(uint32_t period) noexcept;
+
+private:
+
+    uint32_t mCounter;
     uint32_t mPeriod;
-
-
 };
 
-class ChannelBase : public Timer {
+
+class Channel {
 
 public:
+    Channel(uint32_t initPeriod);
 
-    bool dacOn() const noexcept;
+    bool isDacOn() const noexcept;
 
-    int8_t lastOutput() const noexcept;
-
-    bool lengthEnabled() const noexcept;
-
-    virtual void reset() noexcept;
-
-    virtual void restart() noexcept;
-
-    void setDacEnable(bool enabled) noexcept;
-    
-    void step(Mixer &mixer, MixMode mode, uint32_t cycletime, uint32_t cycles);
-    
-    void stepLengthCounter() noexcept;
-
-    void writeFrequencyLsb(uint8_t value);
-
-    void writeFrequencyMsb(uint8_t value);
-    
-    void writeLengthCounter(uint8_t value) noexcept;
-
-protected:
-
-    ChannelBase(uint32_t defaultPeriod, unsigned lengthCounterMax) noexcept;
+    bool isEnabled() const noexcept;
 
     void disable() noexcept;
 
-    void setLengthCounterEnable(bool enable);
+    void setDacEnabled(bool enabled) noexcept;
 
     uint16_t frequency() const noexcept;
 
-    virtual void setPeriod() = 0;
+    uint8_t output() const noexcept;
 
+    Timer& timer() noexcept;
 
-    virtual void stepOscillator() noexcept = 0;
+    void reset() noexcept;
 
-    uint16_t mFrequency; // 0-2047 (for noise channel only 8 bits are used)
+    void restart() noexcept;
 
-    // PCM value going into the DAC (0 to F)
-    int8_t mOutput;
+protected:
+    uint16_t mFrequency;
+    uint8_t mOutput;
 
-    
+private:
     bool mDacOn;
+    bool mEnabled;
+    Timer mTimer;
 
-private:
-
-    template <MixMode mode>
-    void stepImpl(Mixer &mixer, uint32_t cycletime, uint32_t cycles);
-
-    int8_t mLastOutput; // last output sent to the mixer
-    MixMode mLastMix; // previous mode used in step
-    
-
-    unsigned mLengthCounter;
-    bool mLengthEnabled;
-    bool mDisabled;
-
-    unsigned const mLengthCounterMax;
-    uint32_t const mDefaultPeriod;
 
 };
 
-// adds a volume envelope to the base class
-class EnvChannelBase : public ChannelBase {
-public:
-    uint8_t readEnvelope() const noexcept;
-
-    void writeEnvelope(uint8_t value) noexcept;
-
-    void stepEnvelope() noexcept;
-
-    virtual void restart() noexcept override;
-
-    virtual void reset() noexcept override;
-
-
-protected:
-    EnvChannelBase(uint32_t defaultPeriod, unsigned lengthCounterMax) noexcept;
-
-    // contents of the envelope register (NRx2)
-    uint8_t mEnvelopeRegister;
-
-    uint8_t mEnvelopeCounter;
-    uint8_t mEnvelopePeriod;
-    bool mEnvelopeAmplify;
-    int8_t mVolume;
-};
-
-
-
-class PulseChannel : public EnvChannelBase {
+class NoiseChannel : public Channel {
 
 public:
+    NoiseChannel(Envelope const& env);
 
-    PulseChannel() noexcept;
+    void setNoise(uint8_t noisereg) noexcept;
 
-    //
-    // Set the duty of the pulse. Does not require restart.
-    //
-    void writeDuty(uint8_t duty) noexcept;
+    void clock() noexcept;
 
-    uint8_t readDuty() const noexcept;
+    void reset() noexcept;
 
-    virtual void reset() noexcept override;
-
-    virtual void restart() noexcept override;
-
-protected:
-
-    virtual void stepOscillator() noexcept override;
-
-    virtual void setPeriod() noexcept override;
+    void restart() noexcept;
 
 private:
 
+    Envelope const& mEnvelope;
+    bool mValidScf;
+    bool mHalfWidth;
+    uint16_t mLfsr;
+
+};
+
+class PulseChannel : public Channel {
+
+public:
+
+    enum Duty {
+        Duty125 = 0,
+        Duty25 = 1,
+        Duty50 = 2,
+        Duty75 = 3
+    };
+
+    PulseChannel(Envelope const& env);
+
+    uint8_t duty() const noexcept;
+
+    void setDuty(uint8_t duty) noexcept;
+
+    void setFrequency(uint16_t freq) noexcept;
+
+    void clock() noexcept;
+
+    void reset() noexcept;
+
+private:
+
+    Envelope const& mEnvelope;
     uint8_t mDuty;
     uint8_t mDutyWaveform;
 
     unsigned mDutyCounter;
 
-
 };
 
-class SweepPulseChannel final : public PulseChannel {
+
+
+class WaveChannel : public Channel {
 
 public:
-    SweepPulseChannel() noexcept;
 
-    uint8_t readSweep() const noexcept;
+    enum Volume {
+        VolumeMute = 0,
+        VolumeFull = 1,
+        VolumeHalf = 2,
+        VolumeQuarter = 3
+    };
 
-    virtual void reset() noexcept override;
+    WaveChannel();
 
-    virtual void restart() noexcept override;
+    uint8_t* waveram() noexcept;
 
-    void writeSweep(uint8_t reg) noexcept;
+    uint8_t volume() const noexcept;
 
-    void stepSweep() noexcept;
+    void setVolume(uint8_t volume) noexcept;
+
+    void setFrequency(uint16_t frequency) noexcept;
+
+    void clock() noexcept;
+
+    void reset() noexcept;
+
+    void restart() noexcept;
 
 private:
 
-    bool mSweepSubtraction;
-    uint8_t mSweepTime;
-    uint8_t mSweepShift;
+    void updateOutput() noexcept;
 
-    uint8_t mSweepCounter;
+    uint8_t mWaveVolume;
+    uint8_t mVolumeShift;
+    uint8_t mWaveIndex;
+    uint8_t mSampleBuffer;
+    std::array<uint8_t, constants::WAVE_RAMSIZE> mWaveram;
+
+
+};
+
+class LengthCounter {
+
+public:
+    LengthCounter(unsigned max);
+
+    unsigned counter() const noexcept;
+
+    bool isEnabled() const noexcept;
+
+    void setCounter(unsigned value) noexcept;
+
+    void setEnable(bool enabled) noexcept;
+
+    void clock(Channel &channel) noexcept;
+
+    void reset() noexcept;
+
+    void restart() noexcept;
+
+private:
+    bool mEnabled;
+    unsigned mCounter;
+    unsigned const mCounterMax;
+
+};
+
+
+class Envelope {
+
+public:
+
+    Envelope();
+
+    uint8_t readRegister() const noexcept;
+
+    void writeRegister(Channel &channel, uint8_t val) noexcept;
+
+    void clock() noexcept;
+
+    void restart() noexcept;
+
+    void reset() noexcept;
+
+    uint8_t volume() const noexcept;
+
+private:
+
+    // contents of the envelope register (NRx2)
+    uint8_t mRegister;
+
+    uint8_t mCounter;
+    uint8_t mPeriod;
+    bool mAmplify;
+    int8_t mVolume;
+};
+
+
+class Sweep {
+
+public:
+    Sweep();
+
+    uint8_t readRegister() const noexcept;
+
+    void writeRegister(uint8_t val) noexcept;
+
+    void clock(PulseChannel &ch1) noexcept;
+
+    void reset() noexcept;
+
+    void restart(PulseChannel &ch1) noexcept;
+
+private:
+
+    bool mSubtraction;
+    uint8_t mTime;
+    uint8_t mShift;
+    uint8_t mCounter;
 
     // Sweep register, NR10
     // Bits 0-2: Shift amount
     // Bit    3: Sweep mode (1 = subtraction)
     // Bits 4-6: Period
-    uint8_t mSweepRegister;
+    uint8_t mRegister;
 
-    // shadow register, CH1's frequency gets copied here on reset (initalization)
-    int16_t mShadow;
+    // shadow register, CH1's frequency gets copied here on restart (initalization)
+    uint16_t mShadow;
 
 };
 
-class WaveChannel final : public ChannelBase {
+
+class Sequencer {
 
 public:
-
-    WaveChannel() noexcept;
-
-    uint8_t* waveram() noexcept;
-
-    uint8_t readVolume() const noexcept;
-
-    virtual void reset() noexcept override;
-
-    virtual void restart() noexcept override;
-
-    void writeVolume(uint8_t volume) noexcept;
-
-
-protected:
-
-    virtual void stepOscillator() noexcept override;
-
-    virtual void setPeriod() noexcept override;
-
-private:
-
-    void setOutput();
-
-    //Gbs::WaveVolume mVolume;
-    uint8_t mVolumeShift;
-    uint8_t mWaveIndex;
-    uint8_t mSampleBuffer;
-    uint8_t mWaveram[constants::WAVE_RAMSIZE];
-
-
-};
-
-class NoiseChannel final : public EnvChannelBase {
-
-public:
-
-    NoiseChannel() noexcept;
-
-    uint8_t readNoise() const noexcept;
-
-    virtual void restart() noexcept override;
-
-    virtual void reset() noexcept override;
-
-protected:
-    virtual void stepOscillator() noexcept override;
-
-    virtual void setPeriod() noexcept override;
-
-private:
-
-    bool mValidScf;
-
-    // width of the LFSR (7-bit = true, 15-bit = false)
-    bool mHalfWidth;
-    // lfsr: linear feedback shift register
-    uint16_t mLfsr;
-
-
-};
-
-struct ChannelFile {
-
-    SweepPulseChannel ch1;
-    PulseChannel ch2;
-    WaveChannel ch3;
-    NoiseChannel ch4;
-
-    ChannelFile() noexcept :
-        ch1(),
-        ch2(),
-        ch3(),
-        ch4()
-    {
-    }
-
-};
-
-class Sequencer : public Timer {
-
-public:
-
-    Sequencer(ChannelFile &cf) noexcept;
+    Sequencer();
 
     void reset() noexcept;
 
-    void step(uint32_t cycles) noexcept;
+    void run(Hardware &hw, uint32_t cycles) noexcept;
+
+    uint32_t cyclesToNextTrigger() const noexcept;
 
 private:
-
     enum class TriggerType {
         lcSweep,
         lc,
@@ -435,13 +407,134 @@ private:
 
     static Trigger const TRIGGER_SEQUENCE[];
 
-    ChannelFile &mCf;
+    Timer mTimer;
     uint32_t mTriggerIndex;
 
+};
 
 
+
+class Hardware {
+
+    using ChannelTuple = std::tuple<PulseChannel, PulseChannel, WaveChannel, NoiseChannel>;
+
+public:
+    Hardware();
+
+    void reset();
+
+    void clockEnvelopes() noexcept;
+
+    void clockLengthCounters() noexcept;
+
+    void clockSweep() noexcept;
+
+    template <size_t channel>
+    void writeFrequencyLsb(uint8_t lsb) noexcept {
+        static_assert(channel < 4, "unknown channel");
+
+        auto &ch = std::get<channel>(mChannels);
+        if constexpr (channel == 3) {
+            // noise channel
+            ch.setNoise(lsb);
+        } else {
+            ch.setFrequency((ch.frequency() & 0xFF00) | lsb);
+        }
+    }
+
+    template <size_t channel>
+    void writeFrequencyMsb(uint8_t msb) noexcept {
+        static_assert(channel < 4, "unknown channel");
+
+        auto &ch = std::get<channel>(mChannels);
+        if constexpr (channel != 3) {
+            ch.setFrequency((ch.frequency() & 0x00FF) | ((msb & 0x7) << 8));
+        }
+
+        mLengthCounters[channel].setEnable(!!(msb & 0x40));
+        if (!!(msb & 0x80)) {
+            ch.restart();
+            mLengthCounters[channel].restart();
+            if constexpr (channel != 2) {
+                envelope<channel>().restart();
+            }
+
+            if constexpr (channel == 0) {
+                mSweep.restart(std::get<0>(mChannels));
+            }
+        }
+    }
+
+    template <size_t channel>
+    Envelope& envelope() noexcept {
+        static_assert(channel != 2, "WaveChannel has no envelope");
+        static_assert(channel < 4, "unknown channel");
+
+        constexpr auto index = channel > 2 ? 2 : channel;
+        return mEnvelopes[index];
+
+    }
+
+    template <size_t channel>
+    LengthCounter& lengthCounter() noexcept {
+        static_assert(channel < 4, "unknown channel");
+        return mLengthCounters[channel];
+    }
+
+    Sweep& sweep() noexcept;
+
+    template <size_t index>
+    std::tuple_element_t<index, ChannelTuple>& channel() noexcept {
+        return std::get<index>(mChannels);
+    }
+
+    template <size_t channel>
+    void writeEnvelope(uint8_t value) noexcept {
+        envelope<channel>().writeRegister(std::get<channel>(mChannels), value);
+    }
+
+    void setMix(ChannelMix const& mix, Mixer &mixer, uint32_t cycletime) noexcept;
+
+    ChannelMix const& mix() const noexcept;
+
+    void setChannelMix(Mixer &mixer, size_t channel, MixMode mode) noexcept;
+
+    uint8_t lastOutput(size_t channel) const noexcept;
+
+
+    void run(Mixer &mixer, uint32_t cycletime, uint32_t cycles) noexcept;
+
+
+private:
+
+    template <class Channel>
+    void runChannel(size_t index, Channel &ch, Mixer &mixer, uint32_t cycletime, uint32_t cycles) noexcept;
+
+    template <class Channel, MixMode mode>
+    void runAndMixChannel(size_t index, Channel &ch, Mixer &mixer, uint32_t cycletime, uint32_t cycles) noexcept;
+
+    MixMode preRunChannel(size_t index, Channel &ch, Mixer &mixer, uint32_t cycletime) noexcept;
+
+    void silence(size_t channel, Mixer &mixer, uint32_t cycletime) noexcept;
+
+    std::array<LengthCounter, 4> mLengthCounters;
+    std::array<Envelope, 3> mEnvelopes;
+    Sweep mSweep;
+
+    Sequencer mSequencer;
+    ChannelTuple mChannels;
+
+    ChannelMix mMix;
+
+    std::array<uint8_t, 4> mLastOutputs;
 
 };
+
+
+
+
+
+
 
 
 } // gbapu::_internal
@@ -533,12 +626,10 @@ private:
     void updateVolume();
 
     _internal::Mixer mMixer;
-    std::array<_internal::MixMode, 4> mPannings;
 
     uint8_t mNr51;
 
-    _internal::ChannelFile mCf;
-    _internal::Sequencer mSequencer;
+    _internal::Hardware mHardware;
 
     uint32_t mCycletime;
 
