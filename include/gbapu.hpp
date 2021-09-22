@@ -55,37 +55,85 @@ using ChannelMix = std::array<MixMode, 4>;
 class Mixer {
 
 public:
-    Mixer();
+    explicit Mixer();
 
-    void mix(MixMode mode, int8_t sample, uint32_t cycletime);
+    //
+    // Mixes a bandlimited step with the given delta (-15 to 15). The delta
+    // is multiplied by the volume step for its destination terminal.
+    // Calling this function with MixMode::mute does nothing.
+    //
+    void mix(MixMode mode, int8_t delta, uint32_t cycletime);
 
+    //
+    // Adds DC offsets to each terminal at the given cycle time
+    //
     void mixDc(float dcLeft, float dcRight, uint32_t cycletime);
 
+    //
+    // Same as mix, but has the mode as a template parameter
+    //
     template <MixMode mode>
-    void mixfast(int8_t sample, uint32_t cycletime);
+    void mixfast(int8_t delta, uint32_t cycletime);
 
+    //
+    // Sets the volume step for each terminal.
+    //
     void setVolume(float leftVolume, float rightVolume);
 
+    //
+    // Volume step for the left terminal
+    //
     float leftVolume() const noexcept;
 
+    //
+    // Volume step for the right terminal
+    //
     float rightVolume() const noexcept;
 
     // buffer management
 
+    //
+    // Sets the size of the sample buffer, in samples. Must call this
+    // once before mixing, or a null-pointer dereference will occur.
+    //
     void setBuffer(size_t samples);
 
+    //
+    // Sets the samplerate. This change will only effect new mixes, so
+    // it's recommended to clear the buffer beforehand.
+    //
     void setSamplerate(unsigned rate);
 
+    //
+    // Ends the frame at the given cycle time, allowing for samples to be
+    // read from the buffer
+    //
     void endFrame(uint32_t cycletime);
 
+    //
+    // Gets the total number of samples available for reading
+    //
     size_t availableSamples() const noexcept;
 
+    //
+    // Read from the sample buffer, moving data to the given buffer. The
+    // number of samples that was read is returned.
+    //
     size_t readSamples(float buf[], size_t samples);
 
+    //
+    // Removes the given number of samples from the buffer
+    //
     void removeSamples(size_t samples);
 
+    //
+    // Converts the time in cycles to time in samples
+    //
     float sampletime(uint32_t cycletime) const noexcept;
 
+    //
+    // Clears the buffer, and resets the filter state.
+    //
     void clear();
 
 private:
@@ -113,9 +161,6 @@ private:
 
     MixParam getMixParameters(uint32_t cycletime);
 
-    void calculateHighpass();
-    void calculateFactor();
-
     float mVolumeStepLeft;
     float mVolumeStepRight;
 
@@ -136,17 +181,35 @@ private:
 class Hardware;
 class Envelope;
 
+//
+// Timer class for counting cycles. Each Channel has a frequency timer, which
+// determines the rate its waveform generator is clocked.
+//
 class Timer {
 
 public:
-    Timer(uint32_t initPeriod);
+    explicit Timer(uint32_t initPeriod);
 
+    //
+    // Current counter value, or the number of cycles left to complete a period
+    //
     uint32_t counter() const noexcept;
 
+    //
+    // Current period value
+    //
     uint32_t period() const noexcept;
 
+    //
+    // Runs the timer, returning true if the counter reaches 0
+    // false otherwise. If the counter reaches 0 it is also reloaded
+    // with the period. Note that cycles must be <= counter()
+    //
     bool run(uint32_t cycles) noexcept;
 
+    //
+    // Reloads the counter with the period
+    //
     void restart() noexcept;
 
     void setPeriod(uint32_t period) noexcept;
@@ -157,11 +220,17 @@ private:
     uint32_t mPeriod;
 };
 
-
+//
+// Base class for an APU channel. All channels have:
+//  - DAC status
+//  - enabled status (controlled by the LengthCounter)
+//  - frequency
+//  - DAC input, used for mixing
+//  - Frequency timer
+//
 class Channel {
 
 public:
-    Channel(uint32_t initPeriod);
 
     bool isDacOn() const noexcept;
 
@@ -182,6 +251,8 @@ public:
     void restart() noexcept;
 
 protected:
+    explicit Channel(uint32_t initPeriod);
+
     uint16_t mFrequency;
     uint8_t mOutput;
 
@@ -196,7 +267,7 @@ private:
 class NoiseChannel : public Channel {
 
 public:
-    NoiseChannel(Envelope const& env);
+    explicit NoiseChannel(Envelope const& env);
 
     void setNoise(uint8_t noisereg) noexcept;
 
@@ -226,7 +297,7 @@ public:
         Duty75 = 3
     };
 
-    PulseChannel(Envelope const& env);
+    explicit PulseChannel(Envelope const& env);
 
     uint8_t duty() const noexcept;
 
@@ -261,7 +332,7 @@ public:
         VolumeQuarter = 3
     };
 
-    WaveChannel();
+    explicit WaveChannel();
 
     uint8_t* waveram() noexcept;
 
@@ -293,7 +364,7 @@ private:
 class LengthCounter {
 
 public:
-    LengthCounter(unsigned max);
+    explicit LengthCounter(unsigned max);
 
     unsigned counter() const noexcept;
 
@@ -321,7 +392,7 @@ class Envelope {
 
 public:
 
-    Envelope();
+    explicit Envelope();
 
     uint8_t readRegister() const noexcept;
 
@@ -350,7 +421,7 @@ private:
 class Sweep {
 
 public:
-    Sweep();
+    explicit Sweep();
 
     uint8_t readRegister() const noexcept;
 
@@ -384,7 +455,7 @@ private:
 class Sequencer {
 
 public:
-    Sequencer();
+    explicit Sequencer();
 
     void reset() noexcept;
 
@@ -419,7 +490,7 @@ class Hardware {
     using ChannelTuple = std::tuple<PulseChannel, PulseChannel, WaveChannel, NoiseChannel>;
 
 public:
-    Hardware();
+    explicit Hardware();
 
     void reset();
 
@@ -507,14 +578,25 @@ public:
 
 private:
 
+    //
+    // Runs the channel and mixes any changes in output
+    //
     template <class Channel>
     void runChannel(size_t index, Channel &ch, Mixer &mixer, uint32_t cycletime, uint32_t cycles) noexcept;
 
     template <class Channel, MixMode mode>
     void runAndMixChannel(size_t index, Channel &ch, Mixer &mixer, uint32_t cycletime, uint32_t cycles) noexcept;
 
+    //
+    // Determines which mix mode to use for the given channel. If the channel was disabled or the
+    // DAC is off, the channel is silenced and muted mixing is returned. Otherwise, the
+    // channel's mix setting is used.
+    //
     MixMode preRunChannel(size_t index, Channel &ch, Mixer &mixer, uint32_t cycletime) noexcept;
 
+    //
+    // Silence the given channel
+    //
     void silence(size_t channel, Mixer &mixer, uint32_t cycletime) noexcept;
 
     std::array<LengthCounter, 4> mLengthCounters;
@@ -526,6 +608,7 @@ private:
 
     ChannelMix mMix;
 
+    // last outputs for each channel that was mixed
     std::array<uint8_t, 4> mLastOutputs;
 
 };
@@ -576,7 +659,7 @@ public:
         REG_WAVERAM = 0x30
     };
 
-    Apu(
+    explicit Apu(
         unsigned samplerate,
         size_t buffersizeInSamples
     );

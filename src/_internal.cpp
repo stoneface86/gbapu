@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <functional>
 #include <cmath>
+#include <cassert>
 
 namespace gbapu {
 namespace _internal {
@@ -193,6 +194,7 @@ uint32_t Timer::period() const noexcept {
 }
 
 bool Timer::run(uint32_t cycles) noexcept {
+    assert(mCounter >= cycles);
     mCounter -= cycles;
     if (mCounter == 0) {
         mCounter = mPeriod;
@@ -563,11 +565,21 @@ uint32_t Sequencer::cyclesToNextTrigger() const noexcept {
 // ================================================================ Hardware ===
 
 Hardware::Hardware() :
-    mLengthCounters{ 64, 64, 256, 64 },
+    mLengthCounters{
+        LengthCounter(64),
+        LengthCounter(64),
+        LengthCounter(256),
+        LengthCounter(64)
+    },
     mEnvelopes(),
     mSweep(),
     mSequencer(),
-    mChannels{ mEnvelopes[0], mEnvelopes[1], {}, mEnvelopes[2] },
+    mChannels{
+        PulseChannel(mEnvelopes[0]),
+        PulseChannel(mEnvelopes[1]),
+        WaveChannel(),
+        NoiseChannel(mEnvelopes[2])
+    },
     mMix(),
     mLastOutputs()
 {
@@ -653,11 +665,11 @@ void Hardware::run(Mixer &mixer, uint32_t cycletime, uint32_t cycles) noexcept {
     while (cycles) {
         // step components to the beat of the sequencer
         auto toStep = std::min(cycles, mSequencer.cyclesToNextTrigger());
-        mSequencer.run(*this, toStep);
         runChannel(0, std::get<0>(mChannels), mixer, cycletime, toStep);
         runChannel(1, std::get<1>(mChannels), mixer, cycletime, toStep);
         runChannel(2, std::get<2>(mChannels), mixer, cycletime, toStep);
         runChannel(3, std::get<3>(mChannels), mixer, cycletime, toStep);
+        mSequencer.run(*this, toStep);
 
         cycletime += toStep;
         cycles -= toStep;
@@ -690,15 +702,22 @@ template <class Channel, MixMode mode>
 void Hardware::runAndMixChannel(size_t index, Channel &ch, Mixer &mixer, uint32_t cycletime, uint32_t cycles) noexcept {
     auto &last = mLastOutputs[index];
     auto &timer = ch.timer();
+
+    // TODO: for muted mixing, implement a fast-forward routine for the generation circuit (optimization)
+    // since we don't care about the changes in output, we don't need to step through every period
+
     while (cycles) {
         if constexpr (mode != MixMode::mute) {
+            // mix any change in output
             if (auto out = ch.output(); out != last) {
                 mixer.mixfast<mode>(out - last, cycletime);
                 last = out;
             }
         }
+        // complete this period if possible
         auto toStep = std::min(timer.counter(), cycles);
         if (timer.run(toStep)) {
+            // period complete, clock the waveform generator
             ch.clock();
         }
         cycles -= toStep;
@@ -711,6 +730,8 @@ MixMode Hardware::preRunChannel(size_t index, Channel &ch, Mixer &mixer, uint32_
         return mMix[index];
     }
 
+    // no mixing required, either the channel's DAC is off or
+    // the length counter disabled the channel
     silence(index, mixer, cycletime);
     return MixMode::mute;
 
@@ -775,7 +796,7 @@ static float const STEP_TABLE[PHASES][STEP_WIDTH] = {
 Mixer::Mixer() :
     mVolumeStepLeft(0.0f),
     mVolumeStepRight(0.0f),
-    mSamplerate(44100),
+    mSamplerate(0),
     mFactor(0.0f),
     mBuffer(),
     mBuffersize(0),
@@ -785,23 +806,22 @@ Mixer::Mixer() :
     mHighpassRate(0.0f)
 
 {
-    calculateFactor();
-    calculateHighpass();
+    setSamplerate(44100);
 }
 
 
-void Mixer::mix(MixMode mode, int8_t sample, uint32_t cycletime) {
+void Mixer::mix(MixMode mode, int8_t delta, uint32_t cycletime) {
     switch (mode) {
         case MixMode::mute:
             break;
         case MixMode::left:
-            mixfast<MixMode::left>(sample, cycletime);
+            mixfast<MixMode::left>(delta, cycletime);
             break;
         case MixMode::right:
-            mixfast<MixMode::right>(sample, cycletime);
+            mixfast<MixMode::right>(delta, cycletime);
             break;
         case MixMode::middle:
-            mixfast<MixMode::middle>(sample, cycletime);
+            mixfast<MixMode::middle>(delta, cycletime);
             break;
         default:
             break;
@@ -901,8 +921,9 @@ void Mixer::setBuffer(size_t samples) {
 void Mixer::setSamplerate(unsigned rate) {
     if (mSamplerate != rate) {
         mSamplerate = rate;
-        calculateFactor();
-        calculateHighpass(); // highpass rate dependent on mFactor
+        mFactor = mSamplerate / constants::CLOCK_SPEED<float>;
+        // using SameBoy's HPF (GB_HIGHPASS_ACCURATE)
+        mHighpassRate = powf(0.999958f, 1.0f / mFactor);
     }
 }
 
@@ -957,16 +978,6 @@ void Mixer::removeSamples(size_t samples) {
     std::copy(mBuffer.get() + amountInFrames, mBuffer.get() + mBuffersize, mBuffer.get());
     std::fill_n(mBuffer.get() + (mBuffersize - amountInFrames), amountInFrames, 0.0f);
     mWriteIndex -= samples;
-}
-
-
-void Mixer::calculateFactor() {
-    mFactor = mSamplerate / constants::CLOCK_SPEED<float>;
-}
-
-void Mixer::calculateHighpass() {
-    // using SameBoy's HPF (GB_HIGHPASS_ACCURATE)
-    mHighpassRate = powf(0.999958f, 1.0f / mFactor);
 }
 
 
