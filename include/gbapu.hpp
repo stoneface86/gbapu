@@ -209,6 +209,12 @@ public:
     bool run(uint32_t cycles) noexcept;
 
     //
+    // Similar to run, but counts the number of clocks the timer
+    // completes after running the given number of cycles.
+    //
+    uint32_t fastforward(uint32_t cycles) noexcept;
+
+    //
     // Reloads the counter with the period
     //
     void restart() noexcept;
@@ -278,7 +284,13 @@ public:
 
     void restart() noexcept;
 
+    void fastforward(uint32_t cycles) noexcept;
+
 private:
+
+    void updateOutput() noexcept;
+
+    void clockLfsr() noexcept;
 
     Envelope const& mEnvelope;
     bool mValidScf;
@@ -310,7 +322,11 @@ public:
 
     void reset() noexcept;
 
+    void fastforward(uint32_t cycles) noexcept;
+
 private:
+
+    void updateOutput() noexcept;
 
     Envelope const& mEnvelope;
     uint8_t mDuty;
@@ -349,7 +365,11 @@ public:
 
     void restart() noexcept;
 
+    void fastforward(uint32_t cycles) noexcept;
+
 private:
+
+    void updateSampleBuffer() noexcept;
 
     void updateOutput() noexcept;
 

@@ -206,6 +206,18 @@ bool Timer::run(uint32_t cycles) noexcept {
     }
 }
 
+uint32_t Timer::fastforward(uint32_t cycles) noexcept {
+    if (cycles < mCounter) {
+        mCounter -= cycles;
+        return 0;
+    } else {
+        cycles -= mCounter;
+        auto clocks = (cycles / mPeriod) + 1;
+        mCounter = mPeriod - (cycles % mPeriod);
+        return clocks;
+    }
+}
+
 void Timer::setPeriod(uint32_t period) noexcept {
     mPeriod = period;
 }
@@ -305,20 +317,8 @@ void NoiseChannel::setNoise(uint8_t noisereg) noexcept {
 
 void NoiseChannel::clock() noexcept {
     if (mValidScf) {
-
-        // xor bits 1 and 0 of the lfsr
-        uint8_t result = (mLfsr & 0x1) ^ ((mLfsr >> 1) & 0x1);
-        // shift the register
-        mLfsr >>= 1;
-        // set the resulting xor to bit 15 (feedback)
-        mLfsr |= result << 14;
-        if (mHalfWidth) {
-            // 7-bit lfsr, set bit 7 with the result
-            mLfsr &= ~0x40; // reset bit 7
-            mLfsr |= result << 6; // set bit 7 result
-        }
-
-        mOutput = -((~mLfsr) & 1) & mEnvelope.volume();
+        clockLfsr();
+        updateOutput();
     }
 }
 
@@ -336,6 +336,36 @@ void NoiseChannel::restart() noexcept {
     Channel::restart();
     mLfsr = LFSR_INIT;
     mOutput = 0;
+}
+
+void NoiseChannel::fastforward(uint32_t cycles) noexcept {
+
+    auto clocks = timer().fastforward(cycles);
+    if (mValidScf) {
+        while (clocks) {
+            clockLfsr();
+            --clocks;
+        }
+        updateOutput();
+    }
+}
+
+void NoiseChannel::clockLfsr() noexcept {
+    // xor bits 1 and 0 of the lfsr
+    uint8_t result = (mLfsr & 0x1) ^ ((mLfsr >> 1) & 0x1);
+    // shift the register
+    mLfsr >>= 1;
+    // set the resulting xor to bit 15 (feedback)
+    mLfsr |= result << 14;
+    if (mHalfWidth) {
+        // 7-bit lfsr, set bit 7 with the result
+        mLfsr &= ~0x40; // reset bit 7
+        mLfsr |= result << 6; // set bit 7 result
+    }
+}
+
+void NoiseChannel::updateOutput() noexcept {
+    mOutput = -((~mLfsr) & 1) & mEnvelope.volume();
 }
 
 // ============================================================ PulseChannel ===
@@ -394,7 +424,7 @@ void PulseChannel::clock() noexcept {
 
     // increment duty counter
     mDutyCounter = (mDutyCounter + 1) & 0x7;
-    mOutput = -((mDutyWaveform >> mDutyCounter) & 1) & mEnvelope.volume();
+    updateOutput();
 }
 
 void PulseChannel::reset() noexcept {
@@ -402,6 +432,16 @@ void PulseChannel::reset() noexcept {
     mDutyCounter = 0;
     setDuty(Duty75);
     Channel::reset();
+}
+
+void PulseChannel::fastforward(uint32_t cycles) noexcept {
+    auto clocks = timer().fastforward(cycles);
+    mDutyCounter = (mDutyCounter + clocks) & 0x7;
+    updateOutput();
+}
+
+void PulseChannel::updateOutput() noexcept {
+    mOutput = -((mDutyWaveform >> mDutyCounter) & 1) & mEnvelope.volume();
 }
 
 
@@ -462,16 +502,7 @@ void WaveChannel::setFrequency(uint16_t frequency) noexcept {
 
 void WaveChannel::clock() noexcept {
     mWaveIndex = (mWaveIndex + 1) & 0x1F;
-    mSampleBuffer = mWaveram[mWaveIndex >> 1];
-    if (mWaveIndex & 1) {
-        // odd number, low nibble
-        mSampleBuffer &= 0xF;
-    } else {
-        // even number, high nibble
-        mSampleBuffer >>= 4;
-    }
-
-    updateOutput();
+    updateSampleBuffer();
 }
 
 void WaveChannel::reset() noexcept {
@@ -489,6 +520,23 @@ void WaveChannel::restart() noexcept {
     mWaveIndex = 0;
 }
 
+void WaveChannel::fastforward(uint32_t cycles) noexcept {
+    auto clocks = timer().fastforward(cycles);
+    mWaveIndex = (mWaveIndex + clocks) & 0x1F;
+    updateSampleBuffer();
+}
+
+void WaveChannel::updateSampleBuffer() noexcept {
+    mSampleBuffer = mWaveram[mWaveIndex >> 1];
+    if (mWaveIndex & 1) {
+        // odd number, low nibble
+        mSampleBuffer &= 0xF;
+    } else {
+        // even number, high nibble
+        mSampleBuffer >>= 4;
+    }
+    updateOutput();
+}
 
 void WaveChannel::updateOutput() noexcept {
     mOutput = mSampleBuffer >> mVolumeShift;
@@ -702,28 +750,42 @@ void Hardware::runChannel(size_t index, Channel &ch, Mixer &mixer, uint32_t cycl
 
 template <class Channel, MixMode mode>
 void Hardware::runAndMixChannel(size_t index, Channel &ch, Mixer &mixer, uint32_t cycletime, uint32_t cycles) noexcept {
-    auto &last = mLastOutputs[index];
-    auto &timer = ch.timer();
 
-    // TODO: for muted mixing, implement a fast-forward routine for the generation circuit (optimization)
-    // since we don't care about the changes in output, we don't need to step through every period
+    if constexpr (mode == MixMode::mute) {
 
-    while (cycles) {
-        if constexpr (mode != MixMode::mute) {
+        // optimization, since the channel is muted, we don't need to mix any
+        // changes in the output, just run the channel for the needed amount of cycles
+        ch.fastforward(cycles);
+
+    } else {
+
+        auto &last = mLastOutputs[index];
+
+        auto mixChanges = [&]() {
             // mix any change in output
             if (auto out = ch.output(); out != last) {
                 mixer.mixfast<mode>(out - last, cycletime);
                 last = out;
             }
-        }
-        // complete this period if possible
-        auto toStep = std::min(timer.counter(), cycles);
-        if (timer.run(toStep)) {
-            // period complete, clock the waveform generator
+        };
+
+
+        auto &timer = ch.timer();
+
+        mixChanges();
+        cycletime += timer.counter();
+
+        // determine the number of clocks we are stepping
+        auto clocks = timer.fastforward(cycles);
+        auto const period = timer.period();
+
+        // iterate each clock and mix any change in output
+        while (clocks) {
             ch.clock();
+            --clocks;
+            mixChanges();
+            cycletime += period;
         }
-        cycles -= toStep;
-        cycletime += toStep;
     }
 }
 
