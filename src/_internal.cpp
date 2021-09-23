@@ -6,6 +6,8 @@
 #include <cmath>
 #include <cassert>
 
+#include <utility>
+
 namespace gbapu {
 namespace _internal {
 
@@ -749,14 +751,36 @@ void Hardware::silence(size_t channel, Mixer &mixer, uint32_t cycletime) noexcep
 
 namespace {
 
-constexpr size_t PHASES = 32;
-constexpr size_t STEP_WIDTH = 16;
+constexpr size_t PHASES = 32;       // number of step sets
+constexpr size_t STEP_WIDTH = 16;   // width, in samples, of a step (MUST BE EVEN)
+
+// note that the STEP_TABLE has an extra step set for interpolation purposes
+
+// Compressing the STEP_TABLE
+// the STEP_TABLE could be halved in size by taking advantage of symmetry
+//
+// consider a STEP_TABLE with 4 phases - { A, B, C, D, E} where A,B,C,D,E are step sets
+// split each step in half, the table is now { A1 + A2, B1 + B2, C1 + C2, D1 + D2, E1 + E2 }
+// and apply symmetry: (rev reverses the step set)
+//  A2 = rev(E1)
+//  B2 = rev(D1)
+//  C2 = rev(C1)
+//  D2 = rev(B1)
+//  E2 = rev(A1)
+//
+// so we only need a table with sets A1, B1, C1, D1 and E1
+// A2, B2, C2, D2 and E2, can be accessed by reading E1, D1, C1, B1, and A1, in reverse, respectively
+//
+// Using symmetry reduces the space requirement of the STEP_TABLE by a half
+//  sizeof(STEP_TABLE) = sizeof(float) * (PHASES + 1) * (STEP_WIDTH / 2)
 
 //
 // pre-computed step table for bandlimited-synthesis
 // table is from the blip_buf library, converted to float by multiplying all values by (1/32768.0f)
+// the filter kernel the steps are sampled from appears to be some form of windowed-sinc
+// this table will eventually be replaced with a custom kernel and may even be generated at runtime
 //
-static float const STEP_TABLE[PHASES][STEP_WIDTH] = {
+static float const STEP_TABLE[PHASES + 1][STEP_WIDTH] = {
     { 0.001312256f, -0.003509521f,  0.010681152f, -0.014892578f,  0.034667969f, -0.027893066f,  0.178863525f,  0.641540527f,  0.178863525f, -0.027893066f,  0.034667969f, -0.014892578f,  0.010681152f, -0.003509521f,  0.001312256f,  0.000000000f },
     { 0.001342773f, -0.003601074f,  0.010620117f, -0.014434814f,  0.032836914f, -0.024383545f,  0.160949707f,  0.640899658f,  0.197265625f, -0.031158447f,  0.036315918f, -0.015228271f,  0.010681152f, -0.003356934f,  0.001220703f,  0.000030518f },
     { 0.001373291f, -0.003692627f,  0.010498047f, -0.013854980f,  0.030853271f, -0.020660400f,  0.143615723f,  0.638916016f,  0.216125488f, -0.034149170f,  0.037780762f, -0.015441895f,  0.010589600f, -0.003112793f,  0.001068115f,  0.000091553f },
@@ -788,7 +812,9 @@ static float const STEP_TABLE[PHASES][STEP_WIDTH] = {
     { 0.000183105f,  0.000793457f, -0.002593994f,  0.010162354f, -0.015380859f,  0.040039063f, -0.039062500f,  0.254974365f,  0.631072998f,  0.110748291f, -0.012756348f,  0.026489258f, -0.012329102f,  0.009979248f, -0.003753662f,  0.001434326f },
     { 0.000122070f,  0.000946045f, -0.002868652f,  0.010406494f, -0.015472412f,  0.039001465f, -0.036773682f,  0.235382080f,  0.635650635f,  0.126831055f, -0.016754150f,  0.028747559f, -0.013153076f,  0.010253906f, -0.003723145f,  0.001403809f },
     { 0.000091553f,  0.001068115f, -0.003112793f,  0.010589600f, -0.015441895f,  0.037780762f, -0.034149170f,  0.216125488f,  0.638916016f,  0.143615723f, -0.020660400f,  0.030853271f, -0.013854980f,  0.010498047f, -0.003692627f,  0.001373291f },
-    { 0.000030518f,  0.001220703f, -0.003356934f,  0.010681152f, -0.015228271f,  0.036315918f, -0.031158447f,  0.197265625f,  0.640899658f,  0.160949707f, -0.024383545f,  0.032836914f, -0.014434814f,  0.010620117f, -0.003601074f,  0.001342773f }
+    { 0.000030518f,  0.001220703f, -0.003356934f,  0.010681152f, -0.015228271f,  0.036315918f, -0.031158447f,  0.197265625f,  0.640899658f,  0.160949707f, -0.024383545f,  0.032836914f, -0.014434814f,  0.010620117f, -0.003601074f,  0.001342773f },
+    // extra step! this step is just the first one reversed
+    { 0.000000000f,  0.001312256f, -0.003509521f,  0.010681152f, -0.014892578f,  0.034667969f, -0.027893066f,  0.178863525f,  0.641540527f,  0.178863525f, -0.027893066f,  0.034667969f, -0.014892578f,  0.010681152f, -0.003509521f,  0.001312256f }
 };
 
 }
@@ -829,11 +855,11 @@ void Mixer::mix(MixMode mode, int8_t delta, uint32_t cycletime) {
 }
 
 float Mixer::sampletime(uint32_t cycletime) const noexcept {
-    return (cycletime * mFactor) + mSampleOffset + mWriteIndex;
+    return (cycletime * mFactor) + mSampleOffset;
 }
 
 void Mixer::mixDc(float dcLeft, float dcRight, uint32_t cycletime) {
-    auto buf = mBuffer.get() + ((size_t)sampletime(cycletime) * 2);
+    auto buf = mBuffer.get() + (((size_t)sampletime(cycletime) + mWriteIndex) * 2);
     *buf++ += dcLeft;
     *buf += dcRight;
 }
@@ -841,52 +867,64 @@ void Mixer::mixDc(float dcLeft, float dcRight, uint32_t cycletime) {
 Mixer::MixParam Mixer::getMixParameters(uint32_t cycletime) {
     // convert cycle time to sample time, separating the
     // integral and fraction components
-    float index;
-    float phase = modff(sampletime(cycletime), &index);
+
+    // modff was too slow
+    float time = sampletime(cycletime);
+    float phase = (time - (int)time) * PHASES;
 
     return {
-        STEP_TABLE[(size_t)(phase * PHASES)],
-        mBuffer.get() + ((size_t)index * 2)
+        STEP_TABLE[(int)(phase)],
+        mBuffer.get() + (((size_t)time + mWriteIndex) * 2),
+        phase - (int)phase
     };
+}
+
+//
+// Returns a pair of deltas both scaled by the given scale and linearly interpolated by
+// the given fraction
+//
+static inline std::pair<float, float> deltaScale(float delta, float scale, float interp) {
+    delta *= scale;
+    float deltaInterp = delta * interp;
+    return std::make_pair(delta - deltaInterp, deltaInterp);
 }
 
 
 template <MixMode mode>
 void Mixer::mixfast(int8_t delta, uint32_t cycletime) {
-    // a muted mode results in an empty function body, so make sure we do not implement one!
+    // muted mixing is a no-op, so don't bother instantiating a template
+    // for this mode.
     static_assert(mode != MixMode::mute, "cannot mix a muted mode!");
 
     auto param = getMixParameters(cycletime);
-
-    float deltaLeft;
-    float deltaRight;
-
-    if constexpr (modePansLeft(mode)) {
-        deltaLeft = delta * mVolumeStepLeft;
-    } else {
-        (void)deltaLeft;
-    }
-
-    if constexpr (modePansRight(mode)) {
-        deltaRight = delta * mVolumeStepRight;
-    } else {
-        (void)deltaRight;
-    }
 
     if constexpr (mode == MixMode::right) {
         ++param.dest;
     }
 
+    std::pair<float, float> deltaLeft, deltaRight;
 
+    if constexpr (modePansLeft(mode)) {
+        deltaLeft = deltaScale(delta, mVolumeStepLeft, param.timeFract);
+    }
+
+    if constexpr (modePansRight(mode)) {
+        deltaRight = deltaScale(delta, mVolumeStepRight, param.timeFract);
+    }
+
+    // interpolate with the next step set
+    auto nextset = param.stepset + STEP_WIDTH;
     for (auto i = STEP_WIDTH; i--; ) {
-        auto const s = *param.stepset++;
+        auto const s0 = *param.stepset++;
+        auto const s1 = *nextset++;
+
 
         if constexpr (modePansLeft(mode)) {
-            *param.dest++ += deltaLeft * s;
+            *param.dest++ += deltaLeft.first * s0 + deltaLeft.second * s1;
         }
 
         if constexpr (modePansRight(mode)) {
-            *param.dest++ += deltaRight * s;
+            *param.dest++ += deltaRight.first * s0 + deltaRight.second * s1;
         }
 
         if constexpr (mode != MixMode::middle) {
@@ -939,7 +977,7 @@ void Mixer::clear() {
 void Mixer::endFrame(uint32_t cycletime) {
     float index;
     mSampleOffset = modff(sampletime(cycletime), &index);
-    mWriteIndex = (size_t)index;
+    mWriteIndex += (size_t)index;
 }
 
 size_t Mixer::availableSamples() const noexcept {

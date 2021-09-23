@@ -127,22 +127,23 @@ public:
     void removeSamples(size_t samples);
 
     //
-    // Converts the time in cycles to time in samples
-    //
-    float sampletime(uint32_t cycletime) const noexcept;
-
-    //
     // Clears the buffer, and resets the filter state.
     //
     void clear();
 
 private:
+    //
+    // Converts the time in cycles to time in samples
+    //
+    float sampletime(uint32_t cycletime) const noexcept;
 
     struct MixParam {
         // the stepset to use
         float const* stepset;
         // the destination in the buffer to mix the step
         float *dest;
+        // time fraction used for interpolation
+        float timeFract;
 
     };
 
